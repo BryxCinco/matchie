@@ -2,6 +2,7 @@
 // file inside the app/ directory. Use ONLY in workers/ or secure backend scripts.
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/types/database.types";
 
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -15,7 +16,7 @@ export function createClient() {
     );
   }
 
-  return createSupabaseClient(url, serviceRoleKey, {
+  return createSupabaseClient<Database>(url, serviceRoleKey, {
     // No user session: this client acts as the service role, not as a user.
     auth: {
       persistSession: false,
