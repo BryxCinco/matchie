@@ -6,6 +6,7 @@ import { signOut } from "./actions";
 const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/tracker", label: "Tracker" },
+  { href: "/onboarding", label: "Profile" },
 ] as const;
 
 // The navbar is a static shell. With cacheComponents, reading the session at
