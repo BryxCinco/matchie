@@ -71,15 +71,22 @@ const NAME_PARTICLE = String.raw`(?:de|del|dela|de\s+la|delos|de\s+los|van|von|y
 // [ \t] rather than \s: a name never continues onto the next line.
 const FULL_NAME = String.raw`${NAME_WORD}(?:[ \t]+[A-Z]\.)?(?:[ \t]+(?:${NAME_PARTICLE}[ \t]+)?${NAME_WORD}){0,3}`;
 
+// "Name" -> "[Nn][Aa][Mm][Ee]". Case-insensitive for one part of a regex.
+// Not (?i:...): regex modifiers need Node 23+, and CI and Vercel run Node 22.
+function anyCase(pattern: string) {
+  return pattern.replace(/[A-Za-z]/g, (c) => `[${c.toUpperCase()}${c.toLowerCase()}]`);
+}
+
+const NAME_LABEL = ["Name", "Full Name", "Contact", "Contact Person", "Attention", "Attn", "Recruiter", "Hiring Manager", "Prepared by", "Signed"]
+  .map((label) => anyCase(label).replace(/ /g, String.raw`\s+`))
+  .join("|");
+
 // Group 1 is the name; the honorific or label before it is kept. Only the
-// label is case-insensitive, via (?i:...): with a whole-regex "i" flag the
-// name would also swallow the lowercase words after it.
+// label is case-insensitive: with a whole-regex "i" flag the name would also
+// swallow the lowercase words after it.
 const NAME_PATTERNS = [
   new RegExp(String.raw`\b(?:Mr|Mrs|Ms|Mx|Dr|Engr|Atty|Arch|Prof|Sir|Ma'am)\.?[ \t]+(${FULL_NAME})`, "g"),
-  new RegExp(
-    String.raw`\b(?i:Name|Full\s+Name|Contact(?:\s+Person)?|Attention|Attn|Recruiter|Hiring\s+Manager|Prepared\s+by|Signed)[ \t]*:[ \t]*(${FULL_NAME})`,
-    "g",
-  ),
+  new RegExp(String.raw`\b(?:${NAME_LABEL})[ \t]*:[ \t]*(${FULL_NAME})`, "g"),
 ];
 
 const NAME_PARTICLES = new Set(["de", "del", "dela", "la", "delos", "los", "van", "von", "y"]);

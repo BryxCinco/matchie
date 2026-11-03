@@ -4,13 +4,14 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { scoreJob, type MatchResult } from "@/lib/match-scoring";
 import { toCandidateSummary } from "@/lib/resume";
+import { MAX_JD_CHARS, MIN_JD_CHARS } from "@/lib/job-description-limits";
 
 const BodySchema = z.object({
   job_description: z
     .string()
     .trim()
-    .min(50, "Paste the full job description (at least 50 characters).")
-    .max(20_000, "That job description is too long (max 20,000 characters)."),
+    .min(MIN_JD_CHARS, `Paste the job description (at least ${MIN_JD_CHARS} characters).`)
+    .max(MAX_JD_CHARS, `That job description is too long (max ${MAX_JD_CHARS.toLocaleString("en-US")} characters).`),
 });
 
 export type ScoreJobResponse = {

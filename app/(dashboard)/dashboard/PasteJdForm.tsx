@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import Link from "next/link";
 import type { ScoreJobResponse } from "@/app/api/score-job/route";
+import { MAX_JD_CHARS, MIN_JD_CHARS } from "@/lib/job-description-limits";
+import { saveJobToTracker, type SaveToTrackerResult } from "../tracker/actions";
 
 export function PasteJdForm() {
   const [jobDescription, setJobDescription] = useState("");
@@ -23,7 +26,9 @@ export function PasteJdForm() {
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        setError(data?.error ?? "Something went wrong. Please try again.");
+        // Show the server's own message (e.g. "Complete your job-search
+        // profile...") so the user knows what to fix.
+        setError(data?.error ?? `Request failed (HTTP ${response.status}). Please try again.`);
         return;
       }
       setResult(data as ScoreJobResponse);
@@ -34,7 +39,8 @@ export function PasteJdForm() {
     }
   }
 
-  const tooShort = jobDescription.trim().length < 50;
+  const length = jobDescription.trim().length;
+  const tooShort = length < MIN_JD_CHARS;
 
   return (
     <div className="flex flex-col gap-6">
@@ -50,13 +56,15 @@ export function PasteJdForm() {
           value={jobDescription}
           onChange={(e) => setJobDescription(e.target.value)}
           rows={10}
-          maxLength={20_000}
+          maxLength={MAX_JD_CHARS}
           placeholder="Paste the full posting: title, requirements, salary, location…"
           className="mt-2 w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/10 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-300"
         />
         <div className="mt-3 flex items-center justify-between gap-4">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Your name and contact details are removed before anything is sent to the AI.
+            {length > 0 && tooShort
+              ? `${MIN_JD_CHARS - length} more character${MIN_JD_CHARS - length === 1 ? "" : "s"} needed.`
+              : "Your name and contact details are removed before anything is sent to the AI."}
           </p>
           <button
             type="submit"
@@ -77,12 +85,28 @@ export function PasteJdForm() {
 
       {error && (
         <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">
-          {error}
+          {error} <FixLink error={error} />
         </p>
       )}
 
-      {result && <MatchCard result={result} />}
+      {/* key: a new job remounts the card, resetting the save button. */}
+      {result && <MatchCard key={result.job_id} result={result} />}
     </div>
+  );
+}
+
+// The two setup errors from /api/score-job each have a page that fixes them.
+function FixLink({ error }: { error: string }) {
+  const target = /resume/i.test(error)
+    ? { href: "/onboarding/resume", label: "Add your resume" }
+    : /profile/i.test(error)
+      ? { href: "/onboarding", label: "Complete your profile" }
+      : null;
+  if (!target) return null;
+  return (
+    <Link href={target.href} className="font-medium underline underline-offset-4">
+      {target.label}
+    </Link>
   );
 }
 
@@ -119,7 +143,45 @@ function MatchCard({ result }: { result: ScoreJobResponse }) {
         <SkillList title="Missing skills" items={match.missing_skills} empty="Nothing missing" className="bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200" />
         <SkillList title="Red flags" items={match.red_flags} empty="No red flags" className="bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-200" />
       </div>
+
+      <div className="mt-6 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+        <SaveToTrackerButton jobId={result.job_id} />
+      </div>
     </section>
+  );
+}
+
+function SaveToTrackerButton({ jobId }: { jobId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [outcome, setOutcome] = useState<SaveToTrackerResult | null>(null);
+
+  if (outcome?.ok) {
+    return (
+      <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
+        {outcome.alreadySaved ? "Already in your tracker." : "Saved to your tracker."}{" "}
+        <Link href="/tracker" className="font-medium text-zinc-950 underline underline-offset-4 dark:text-zinc-50">
+          View tracker
+        </Link>
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => startTransition(async () => setOutcome(await saveJobToTracker(jobId)))}
+        className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200"
+      >
+        {pending ? "Saving…" : "Save to tracker"}
+      </button>
+      {outcome && !outcome.ok && (
+        <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+          {outcome.error}
+        </p>
+      )}
+    </div>
   );
 }
 

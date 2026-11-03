@@ -1,0 +1,61 @@
+# Keeps the free-tier Supabase project from pausing (it pauses after 7 days
+# with no activity). Runs a real database query every 3 days.
+#
+# Secrets: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY.
+# The anon key is enough: it already ships in the browser bundle, and RLS
+# makes the query return [] while still hitting Postgres. The service role
+# key stays out of this workflow.
+
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: "0 0 */3 * *" # 00:00 UTC (08:00 PHT) on every 3rd day of the month
+  workflow_dispatch: # "Run workflow" button, for testing
+
+permissions:
+  contents: read
+  issues: write # for the failure alert below
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY secret"
+            exit 1
+          fi
+
+          # A table query, not the bare /rest/v1/ root: the root is served from
+          # PostgREST's schema cache and may never touch the database.
+          status=$(curl --silent --show-error --output response.txt --write-out "%{http_code}" \
+            --retry 3 --retry-delay 10 --retry-all-errors --max-time 30 \
+            --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/jobs?select=id&limit=1")
+
+          echo "HTTP $status"
+          if [ "$status" != "200" ]; then
+            echo "::error::Supabase keepalive failed with HTTP $status"
+            head -c 500 response.txt
+            exit 1
+          fi
+
+      # GitHub sends no notification when a scheduled run fails. Opening an
+      # issue does: the repo owner gets an email.
+      - name: Open an issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue create \
+            --title "Supabase keepalive failed ($(date -u +%Y-%m-%d))" \
+            --body "The keepalive run failed: $RUN_URL. If it keeps failing, the project may pause after 7 idle days. Check that the project is running and the secrets are set."
