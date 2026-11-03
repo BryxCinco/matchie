@@ -90,7 +90,7 @@ export function LoginForm() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base font-normal text-zinc-950 outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/10 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-300"
+            className="field text-base font-normal"
           />
         </label>
 
@@ -103,7 +103,7 @@ export function LoginForm() {
             autoComplete={isLogin ? "current-password" : "new-password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base font-normal text-zinc-950 outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/10 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-300"
+            className="field text-base font-normal"
           />
         </label>
 
@@ -121,7 +121,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={pending}
-          className="mt-2 rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200"
+          className="btn-primary mt-2 px-4 py-2.5"
         >
           {pending ? "Please wait…" : isLogin ? "Sign in" : "Sign up"}
         </button>
@@ -132,7 +132,7 @@ export function LoginForm() {
         <button
           type="button"
           onClick={switchMode}
-          className="font-medium text-zinc-950 underline-offset-4 hover:underline dark:text-zinc-50"
+          className="link"
         >
           {isLogin ? "Sign up" : "Sign in"}
         </button>

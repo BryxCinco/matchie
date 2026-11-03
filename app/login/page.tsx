@@ -5,8 +5,8 @@ import { LoginForm } from "./login-form";
 // with cacheComponents it streams in behind a Suspense boundary.
 export default function LoginPage() {
   return (
-    <main className="flex flex-1 items-center justify-center bg-zinc-50 px-4 py-16 dark:bg-black">
-      <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+    <main className="flex flex-1 items-center justify-center bg-zinc-50 px-4 py-10 sm:py-16 dark:bg-zinc-950">
+      <div className="w-full max-w-sm card p-6 sm:p-8">
         <Suspense fallback={<div className="h-80" aria-busy="true" />}>
           <LoginForm />
         </Suspense>

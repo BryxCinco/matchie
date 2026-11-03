@@ -47,7 +47,7 @@ export function TagInput({ name, label, hint, initial = [], placeholder, max = 5
         {label}
       </label>
       {hint && <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{hint}</p>}
-      <div className="mt-2 flex flex-wrap gap-1.5 rounded-lg border border-zinc-300 bg-white p-2 focus-within:border-zinc-950 focus-within:ring-2 focus-within:ring-zinc-950/10 dark:border-zinc-700 dark:bg-zinc-900 dark:focus-within:border-zinc-300">
+      <div className="mt-2 flex flex-wrap gap-1.5 rounded-lg border border-zinc-300 bg-white p-2 focus-within:border-zinc-950 focus-within:ring-2 focus-within:ring-zinc-950/10 dark:border-zinc-700 dark:bg-zinc-950 dark:focus-within:border-orange-500 dark:focus-within:ring-orange-500/20">
         {tags.map((tag, i) => (
           <span
             key={tag}

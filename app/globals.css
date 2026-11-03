@@ -1,26 +1,53 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Class-based dark mode: `dark:` applies under <html class="dark">, which the
+   theme script in app/layout.tsx sets from the saved choice or the OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Native controls (scrollbars, date pickers, autofill) follow the theme. */
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  @apply bg-white text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+   Theme utilities. Light: black on white. Dark: pitch black with orange-500 as
+   the accent. Orange buttons use black text: white on orange-500 fails WCAG
+   contrast (2.8:1); black on orange-500 passes (7:1).
+   Sizing (padding, width) stays at the call site.
+   --------------------------------------------------------------------------- */
+
+@utility btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-950 text-sm font-medium text-white transition-colors hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-orange-500 dark:text-zinc-950 dark:hover:bg-orange-400 dark:focus-visible:outline-orange-500;
+}
+
+@utility btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:border-orange-500/60 dark:hover:bg-zinc-900 dark:focus-visible:outline-orange-500;
+}
+
+/* Inline text link. */
+@utility link {
+  @apply font-medium text-zinc-950 underline underline-offset-4 hover:text-zinc-600 dark:text-orange-400 dark:hover:text-orange-300;
+}
+
+/* Text inputs, textareas, number fields. */
+@utility field {
+  @apply w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-950 outline-none placeholder:text-zinc-400 focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/10 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-orange-500 dark:focus:ring-orange-500/20;
+}
+
+/* Raised panel on the page background. */
+@utility card {
+  @apply rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900;
 }

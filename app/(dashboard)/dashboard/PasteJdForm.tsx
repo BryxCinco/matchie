@@ -44,11 +44,10 @@ export function PasteJdForm() {
 
   return (
     <div className="flex flex-col gap-6">
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
-      >
-        <label htmlFor="job-description" className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+      {/* One vertical stack at every width: label, textarea, hint, button.
+          The button is full width on phones and right-aligned from sm up. */}
+      <form onSubmit={handleSubmit} className="card flex w-full flex-col gap-3 p-4 sm:p-6">
+        <label htmlFor="job-description" className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">
           Paste a job description
         </label>
         <textarea
@@ -58,29 +57,24 @@ export function PasteJdForm() {
           rows={10}
           maxLength={MAX_JD_CHARS}
           placeholder="Paste the full posting: title, requirements, salary, location…"
-          className="mt-2 w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/10 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-300"
+          className="field block min-h-48 w-full resize-y text-sm"
         />
-        <div className="mt-3 flex items-center justify-between gap-4">
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {length > 0 && tooShort
-              ? `${MIN_JD_CHARS - length} more character${MIN_JD_CHARS - length === 1 ? "" : "s"} needed.`
-              : "Your name and contact details are removed before anything is sent to the AI."}
-          </p>
-          <button
-            type="submit"
-            disabled={pending || tooShort}
-            className="shrink-0 rounded-lg bg-zinc-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200"
-          >
-            {pending ? "Scoring…" : "Score job"}
-          </button>
-        </div>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {length > 0 && tooShort
+            ? `${MIN_JD_CHARS - length} more character${MIN_JD_CHARS - length === 1 ? "" : "s"} needed.`
+            : "Your name and contact details are removed before anything is sent to the AI."}
+        </p>
+        <button
+          type="submit"
+          disabled={pending || tooShort}
+          className="btn-primary w-full px-4 py-2.5 sm:w-auto sm:self-end"
+        >
+          {pending ? "Scoring…" : "Score job"}
+        </button>
       </form>
 
       {pending && (
-        <div
-          aria-busy="true"
-          className="h-48 animate-pulse rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
-        />
+        <div aria-busy="true" className="card h-48 animate-pulse" />
       )}
 
       {error && (
@@ -122,7 +116,7 @@ function MatchCard({ result }: { result: ScoreJobResponse }) {
   return (
     <section
       aria-live="polite"
-      className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+      className="card p-4 sm:p-6"
     >
       <div className="flex items-start gap-4">
         <div className={`flex size-16 shrink-0 flex-col items-center justify-center rounded-xl ring-1 ${tone}`}>
@@ -159,7 +153,7 @@ function SaveToTrackerButton({ jobId }: { jobId: string }) {
     return (
       <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
         {outcome.alreadySaved ? "Already in your tracker." : "Saved to your tracker."}{" "}
-        <Link href="/tracker" className="font-medium text-zinc-950 underline underline-offset-4 dark:text-zinc-50">
+        <Link href="/tracker" className="link">
           View tracker
         </Link>
       </p>
@@ -172,7 +166,7 @@ function SaveToTrackerButton({ jobId }: { jobId: string }) {
         type="button"
         disabled={pending}
         onClick={() => startTransition(async () => setOutcome(await saveJobToTracker(jobId)))}
-        className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200"
+        className="btn-primary px-4 py-2"
       >
         {pending ? "Saving…" : "Save to tracker"}
       </button>
