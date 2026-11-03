@@ -205,11 +205,14 @@ export type Database = {
       email_messages: {
         Row: {
           body: string | null
+          classification_confidence: number | null
+          classification_reasoning: string | null
           classified_as: string | null
           created_at: string
           from_addr: string
           id: string
           linked_application_id: string | null
+          message_id: string | null
           parse_error: string | null
           parse_failed: boolean
           received_at: string
@@ -219,11 +222,14 @@ export type Database = {
         }
         Insert: {
           body?: string | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
           classified_as?: string | null
           created_at?: string
           from_addr: string
           id?: string
           linked_application_id?: string | null
+          message_id?: string | null
           parse_error?: string | null
           parse_failed?: boolean
           received_at?: string
@@ -233,11 +239,14 @@ export type Database = {
         }
         Update: {
           body?: string | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
           classified_as?: string | null
           created_at?: string
           from_addr?: string
           id?: string
           linked_application_id?: string | null
+          message_id?: string | null
           parse_error?: string | null
           parse_failed?: boolean
           received_at?: string
@@ -649,6 +658,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_email_to_application: {
+        Args: {
+          p_application_id: string
+          p_email_message_id: string
+          p_note?: string
+          p_to_status?: Database["public"]["Enums"]["application_status"]
+        }
+        Returns: undefined
+      }
       delete_old_jobs: { Args: { retention_days?: number }; Returns: number }
     }
     Enums: {
