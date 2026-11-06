@@ -6,7 +6,7 @@ AI job search agent: paste a JD, get a match score, track applications on a Kanb
 
 - **Next.js 16** App Router with `cacheComponents: true`, **React 19**, **TypeScript 5**, **Tailwind v4** (no config file; utilities live in `app/globals.css`).
 - **Supabase**: Postgres, Auth, and RLS. Schema is raw SQL in `supabase/migrations/`; there is no ORM.
-- **LLMs**: Gemini `gemini-2.5-flash` primary, Groq `llama-3.3-70b-versatile` fallback, both through `lib/llm-router.ts`.
+- **LLMs**: Gemini `gemini-3.8-flash` primary (override with `GEMINI_MODEL`), Groq `openai/gpt-oss-120b` fallback (override with `GROQ_MODEL`) on any Gemini-side failure. Providers retire models without notice: check a 404 against the provider's model list before guessing a replacement, both through `lib/llm-router.ts`.
 - **Workers**: plain `.ts` files run by GitHub Actions with `node workers/<name>.ts`. Node type stripping runs them; there is no tsx and no build step.
 - **Tests**: `node:test`, files at `lib/**/*.test.ts`.
 

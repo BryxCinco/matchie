@@ -1,10 +1,16 @@
-// LLM router: Gemini first, Groq only when Gemini is rate-limited (429) or
-// down (5xx). Every prompt goes through scrubPII() before it leaves the
-// server, and placeholders in the answer are restored with unscrubPII().
+// LLM router: Gemini first, Groq when the Gemini call itself fails (rate
+// limit, outage, retired model, timeout, blocked response). Every prompt goes
+// through scrubPII() before it leaves the server, and placeholders in the
+// answer are restored with unscrubPII().
 //
 // Runs in Route Handlers and in workers/, so no Next.js-only imports here.
 
-import { GoogleGenerativeAI, GoogleGenerativeAIFetchError } from "@google/generative-ai";
+import {
+  GoogleGenerativeAI,
+  GoogleGenerativeAIError,
+  GoogleGenerativeAIFetchError,
+  GoogleGenerativeAIRequestInputError,
+} from "@google/generative-ai";
 import Groq, { APIError as GroqAPIError } from "groq-sdk";
 import { z } from "zod";
 // Relative, not "@/": workers run this file with plain Node, which does not
@@ -22,8 +28,11 @@ export type CallLLMOptions = {
 };
 
 // Overridable so a retired model is a config change, not a deploy.
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
-const GROQ_MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+// gemini-2.5-flash was retired for new users in Nov 2026 (HTTP 404).
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
+// llama-3.3-70b-versatile was removed from Groq by Nov 2026 (HTTP 404).
+// List what a key can use: GET https://api.groq.com/openai/v1/models
+const GROQ_MODEL = process.env.GROQ_MODEL ?? "openai/gpt-oss-120b";
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 /** The model answered, but not with JSON that matches the schema, even after one repair attempt. */
@@ -55,8 +64,8 @@ export async function callLLM<T>(
     const result = await generateValidated("gemini", fullPrompt, schema, map, timeoutMs);
     return { result, provider: "gemini" };
   } catch (error) {
-    if (!isRetryableUpstreamError(error)) throw error;
-    console.warn(`[llm-router] gemini unavailable (${describeError(error)}), falling back to groq`);
+    if (!shouldFallBack(error)) throw error;
+    console.warn(`[llm-router] gemini model=${GEMINI_MODEL} failed (${describeError(error)}), falling back to groq model=${GROQ_MODEL}`);
   }
 
   const result = await generateValidated("groq", fullPrompt, schema, map, timeoutMs);
@@ -117,6 +126,9 @@ async function generateGroq(prompt: string, timeoutMs: number): Promise<string> 
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
     temperature: 0.2,
+    // gpt-oss models think before answering; scoring and triage need little
+    // of it, and less is faster. Other models reject the parameter.
+    ...(GROQ_MODEL.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" as const } : {}),
   });
   const content = completion.choices[0]?.message?.content;
   if (!content) throw new Error("groq returned an empty response");
@@ -174,18 +186,24 @@ function statusOf(error: unknown): number | undefined {
   return undefined;
 }
 
-// Only rate limits and server errors justify a second provider. A 400 (bad
-// request) or 403 (bad key) would fail on Groq for the same reason, and a
-// validation failure means Gemini is up and answering.
-function isRetryableUpstreamError(error: unknown) {
-  const status = statusOf(error);
-  return status === 429 || (status !== undefined && status >= 500 && status <= 599);
+// Any failure on Gemini's side falls back: HTTP errors of every status (429,
+// 5xx, 404 retired model, 403 key or quota, 400 a parameter the model no
+// longer accepts), timeouts, network errors and blocked responses. Groq is a
+// separate provider with its own key, so none of those carry over to it.
+// No fallback for:
+// - LLMValidationError: Gemini is up and answering; the repair retry handles it.
+// - GoogleGenerativeAIRequestInputError: our request is malformed; a bug to fix.
+// - Missing GEMINI_API_KEY: a config error that should fail loudly.
+function shouldFallBack(error: unknown) {
+  return error instanceof GoogleGenerativeAIError && !(error instanceof GoogleGenerativeAIRequestInputError);
 }
 
+// Status plus the start of the message, which says why (e.g. "model ... is no
+// longer available"). Provider errors describe the request, never the prompt.
 function describeError(error: unknown) {
   const status = statusOf(error);
-  const message = error instanceof Error ? error.message : String(error);
-  return status ? `HTTP ${status}` : message;
+  const message = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").slice(0, 200);
+  return status ? `HTTP ${status}: ${message}` : message;
 }
 
 // Logs provider, model, timing and attempts only. Never the prompt or the

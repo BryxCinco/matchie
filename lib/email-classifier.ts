@@ -46,8 +46,13 @@ const LLMResultSchema = z.object({
   reasoning: z.string().describe("One sentence"),
 });
 
+// Token budget per email: ~4k chars of body (~1k tokens) plus up to 60 short
+// application lines. A rejection or invite is decided in the first paragraphs;
+// the rest is signatures, footers and legal text.
 const MAX_BODY_CHARS = 4_000;
+const MAX_SUBJECT_CHARS = 300;
 const MAX_APPLICATIONS = 60;
+const MAX_LABEL_CHARS = 100;
 
 // --- 1. Prefilter -------------------------------------------------------------
 
@@ -123,18 +128,20 @@ export async function classifyEmail(
   const ref = result.application_ref;
   const linked = ref !== null && ref >= 1 && ref <= listed.length ? listed[ref - 1] : null;
 
-  return {
+  // The model answers LLMResultSchema (validated inside callLLM); this checks
+  // the mapped result against the public contract the poller relies on.
+  return EmailClassificationSchema.parse({
     classification: result.classification,
     linked_application_id: linked?.id ?? null,
     confidence: Math.round(result.confidence),
-    reasoning: result.reasoning.trim(),
-  };
+    reasoning: result.reasoning.trim().slice(0, 500),
+  });
 }
 
 export function buildPrompt(email: IncomingEmail, applications: ApplicationRef[]) {
   const list = applications.length
     ? applications
-        .map((app, i) => `${i + 1}. ${app.title} at ${app.company ?? "unknown company"} (status: ${app.status})`)
+        .map((app, i) => `${i + 1}. ${label(app.title)} at ${label(app.company ?? "unknown company")} (status: ${app.status})`)
         .join("\n")
     : "none";
 
@@ -148,21 +155,36 @@ ${list}
 
 <email>
 From domain: ${domain}
-Subject: ${email.subject.slice(0, 300)}
+Subject: ${label(email.subject, MAX_SUBJECT_CHARS)}
 
 ${cleanBody(email.text)}
 </email>`;
 }
 
-// Drops quoted replies and long footers; they repeat old mail and cost tokens.
+function label(text: string, max = MAX_LABEL_CHARS) {
+  return text.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+// Drops quoted replies, links and padding: they repeat old mail or carry no
+// meaning, and cost tokens. HTML-only mail converted to text is mostly long
+// tracking URLs, which alone can fill the budget.
 export function cleanBody(text: string) {
+  const normalized = text
+    .replace(/\r\n?/g, "\n")
+    .replace(/<?https?:\/\/[^\s>\])]+>?/g, "[link]")
+    .replace(/[ \t ​-‍﻿]+/g, " ");
   const lines: string[] = [];
-  for (const line of text.replace(/\r\n?/g, "\n").split("\n")) {
-    if (/^On .+wrote:\s*$/.test(line) || /^-{2,}\s*Original Message\s*-{2,}/i.test(line) || /^From: .+/.test(line)) break;
+  for (const raw of normalized.split("\n")) {
+    const line = raw.trim();
+    if (/^On .+wrote:$/.test(line) || /^-{2,}\s*Original Message\s*-{2,}/i.test(line) || /^From: .+/.test(line)) break;
     if (line.startsWith(">")) continue;
     lines.push(line);
   }
-  const body = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const body = lines
+    .join("\n")
+    .replace(/(\[link\][ \n]*){2,}/g, "[link]\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   return body.length > MAX_BODY_CHARS ? `${body.slice(0, MAX_BODY_CHARS)}\n[truncated]` : body;
 }
 

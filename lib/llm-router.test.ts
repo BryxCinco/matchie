@@ -26,7 +26,7 @@ function groqOk(content: string): Reply {
       id: "chatcmpl-test",
       object: "chat.completion",
       created: 0,
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b",
       choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
     },
   };
@@ -90,7 +90,7 @@ describe("callLLM", () => {
     assert.deepEqual(result, { fit_score: 80, reasoning: "Juan Dela Cruz knows React." });
   });
 
-  for (const status of [429, 500, 503]) {
+  for (const status of [429, 500, 503, 404, 403, 400]) {
     it(`falls back to Groq on Gemini HTTP ${status}`, async () => {
       geminiReplies.push(geminiError(status));
       groqReplies.push(groqOk(JSON.stringify({ fit_score: 60, reasoning: "Okay fit for [NAME_1]." })));
@@ -102,13 +102,27 @@ describe("callLLM", () => {
     });
   }
 
-  for (const status of [400, 403]) {
-    it(`does not fall back on Gemini HTTP ${status}`, async () => {
-      geminiReplies.push(geminiError(status));
-      await assert.rejects(callLLM(PROMPT, Score));
+  it("falls back on a network error and logs the Gemini model", async () => {
+    // No Gemini reply queued: the stub throws, as fetch does on a dead connection.
+    groqReplies.push(groqOk(JSON.stringify({ fit_score: 55, reasoning: "Fine." })));
+    const warnings: string[] = [];
+    console.warn = (line: string) => warnings.push(line);
+
+    const { provider } = await callLLM(PROMPT, Score);
+    assert.equal(provider, "groq");
+    assert.match(warnings.join("\n"), /gemini model=gemini-3\.8-flash failed .* falling back to groq/);
+  });
+
+  it("does not fall back when GEMINI_API_KEY is missing", async () => {
+    const key = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    try {
+      await assert.rejects(callLLM(PROMPT, Score), /Missing GEMINI_API_KEY/);
       assert.equal(calls("groq"), 0);
-    });
-  }
+    } finally {
+      process.env.GEMINI_API_KEY = key;
+    }
+  });
 
   it("retries once on invalid output, then succeeds", async () => {
     geminiReplies.push(geminiOk("not json at all"));

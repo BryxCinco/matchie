@@ -16,6 +16,7 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { createClient } from "../lib/supabase/admin.ts";
+import { describeError } from "../lib/describe-error.ts";
 import { ResumeContentSchema } from "../lib/resume.ts";
 import {
   classifyEmail,
@@ -33,7 +34,7 @@ const LOOKBACK_HOURS = Number(process.env.LOOKBACK_HOURS ?? 26);
 // Each classified email is one LLM call against the shared daily budget.
 const MAX_EMAILS_PER_RUN = Number(process.env.MAX_EMAILS_PER_RUN ?? 25);
 
-const stats = { fetched: 0, duplicate: 0, filtered: 0, classified: 0, linked: 0, statusChanged: 0, failed: 0 };
+const stats = { fetched: 0, tooOld: 0, duplicate: 0, filtered: 0, classified: 0, linked: 0, statusChanged: 0, failed: 0 };
 
 function requireEnv(name: string) {
   const value = process.env[name];
@@ -43,6 +44,9 @@ function requireEnv(name: string) {
 
 async function main() {
   const userId = requireEnv("MATCHIE_USER_ID");
+  // Checked up front: without it every email fails the same way, one by one.
+  requireEnv("GEMINI_API_KEY");
+  if (!process.env.GROQ_API_KEY) console.warn("[email-poller] GROQ_API_KEY not set: no fallback when Gemini is rate-limited");
   const supabase = createClient();
 
   const [applications, knownNames] = await Promise.all([loadApplications(supabase, userId), loadKnownNames(supabase, userId)]);
@@ -77,7 +81,10 @@ async function main() {
       stats.fetched++;
 
       const receivedAt = new Date(message.internalDate ?? Date.now());
-      if (receivedAt < cutoff) continue;
+      if (receivedAt < cutoff) {
+        stats.tooOld++;
+        continue;
+      }
 
       await processMessage(supabase, userId, message.source, receivedAt, uid, applications, statusById, knownNames);
     }
@@ -113,7 +120,7 @@ async function processMessage(
   } catch (error) {
     // Unparseable mail is rare and not job data we can use; count, do not store.
     stats.failed++;
-    console.error(`[email-poller] uid ${uid}: could not parse (${(error as Error).name})`);
+    console.error(`[email-poller] uid ${uid}: could not parse: ${describeError(error)}`);
     return;
   }
 
@@ -141,7 +148,7 @@ async function processMessage(
   } catch (error) {
     // Not stored, so the next run retries it while it is inside the lookback window.
     stats.failed++;
-    console.error(`[email-poller] uid ${uid}: classification failed (${(error as Error).name})`);
+    console.error(`[email-poller] uid ${uid}: classification failed: ${describeError(error)}`);
     return;
   }
 
@@ -169,7 +176,7 @@ async function processMessage(
       return;
     }
     stats.failed++;
-    console.error(`[email-poller] uid ${uid}: insert failed (${insertError?.code ?? "no row"})`);
+    console.error(`[email-poller] uid ${uid}: insert failed (${insertError?.code ?? "no row"}): ${insertError?.message ?? ""}`);
     return;
   }
 
@@ -190,7 +197,7 @@ async function processMessage(
 
   if (applyError) {
     stats.failed++;
-    console.error(`[email-poller] application ${appId}: status update failed (${applyError.code})`);
+    console.error(`[email-poller] application ${appId}: status update failed (${applyError.code}): ${applyError.message}`);
     return;
   }
   if (next) {
@@ -226,7 +233,6 @@ async function loadKnownNames(supabase: ReturnType<typeof createClient>, userId:
 }
 
 main().catch((error) => {
-  // Message only: IMAP and Supabase errors can include server responses.
-  console.error(`[email-poller] fatal: ${(error as Error).name}: ${(error as Error).message.slice(0, 200)}`);
+  console.error(`[email-poller] fatal: ${describeError(error)}`);
   process.exit(1);
 });

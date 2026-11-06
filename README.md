@@ -67,8 +67,8 @@ Other scripts:
 | `SUPABASE_SERVICE_ROLE_KEY` | Workers only | Bypasses Row Level Security. Never use it in `app/` and never expose it to the browser |
 | `GEMINI_API_KEY` | Job scoring | Primary LLM provider |
 | `GROQ_API_KEY` | Job scoring | Fallback when Gemini returns HTTP 429 or 5xx |
-| `GEMINI_MODEL` | Job scoring | Optional. Defaults to `gemini-2.5-flash` |
-| `GROQ_MODEL` | Job scoring | Optional. Defaults to `llama-3.3-70b-versatile` |
+| `GEMINI_MODEL` | Job scoring | Optional. Defaults to `gemini-3.8-flash` |
+| `GROQ_MODEL` | Job scoring | Optional. Defaults to `openai/gpt-oss-120b` |
 | `NEXT_PUBLIC_APP_URL` | App | Base URL, e.g. `http://localhost:3000` |
 
 ## GitHub Actions

@@ -59,6 +59,14 @@ describe("cleanBody", () => {
     assert.equal(body, "Thanks for applying.");
     assert.ok(cleanBody("x".repeat(10_000)).endsWith("[truncated]"));
   });
+
+  it("replaces links and collapses runs of them", () => {
+    const body = cleanBody(
+      `Schedule your interview: https://cal.example.com/book?id=${"a".repeat(300)}\n` +
+        "<https://t.example.com/1>\nhttps://t.example.com/2\n\nThanks",
+    );
+    assert.equal(body, "Schedule your interview: [link]\nThanks");
+  });
 });
 
 describe("statusFromClassification", () => {
