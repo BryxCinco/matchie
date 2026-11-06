@@ -28,6 +28,15 @@ export type ScoreJobResult = MatchResult & {
   provider: LLMProvider | null;
 };
 
+/** Response of POST /api/score-job/[jobId]. Here, not in the route file,
+ * so client components can import it without touching server code. */
+export type ScoreExistingJobResponse = {
+  match: MatchResult;
+  provider: string | null;
+  /** True when an existing score was returned without calling the LLM. */
+  cached: boolean;
+};
+
 /** What the model is allowed to know about the candidate. Build it from the
  * parsed resume; never pass contact details or raw text through it. */
 export type CandidateSummary = {

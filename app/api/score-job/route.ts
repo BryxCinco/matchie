@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { scoreJob, type MatchResult } from "@/lib/match-scoring";
-import { toCandidateSummary } from "@/lib/resume";
+import { loadCandidate } from "@/lib/load-candidate";
 import { MAX_JD_CHARS, MIN_JD_CHARS } from "@/lib/job-description-limits";
 
 const BodySchema = z.object({
@@ -35,21 +35,9 @@ export async function POST(request: NextRequest) {
   if (!body.success) return error(400, body.error.issues[0]?.message ?? "Invalid request.");
   const jobDescription = body.data.job_description;
 
-  const [{ data: seeker, error: seekerError }, { data: resume, error: resumeError }] = await Promise.all([
-    supabase
-      .from("seeker_profiles")
-      .select("target_roles, min_salary, work_setup, avoid_industries, skills, years_experience, updated_at")
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase.from("resumes").select("content, updated_at").eq("user_id", user.id).eq("is_master", true).maybeSingle(),
-  ]);
-  if (seekerError || resumeError) return error(500, "Could not load your profile.", seekerError ?? resumeError);
-  if (!seeker) return error(400, "Complete your job-search profile before scoring jobs.");
-
-  const candidate = toCandidateSummary(resume?.content, seeker);
-  if (candidate.skills.length === 0 && candidate.experience.length === 0) {
-    return error(400, "Upload a resume or add skills to your profile before scoring jobs.");
-  }
+  const loaded = await loadCandidate(supabase, user.id);
+  if (!loaded.ok) return error(loaded.status, loaded.error, loaded.cause);
+  const { seeker, candidate, inputsChangedAt } = loaded;
 
   // Manual jobs are hashed per user: a pasted JD is the user's own record,
   // and the RLS insert policy only allows rows they created.
@@ -65,7 +53,6 @@ export async function POST(request: NextRequest) {
       .eq("job_id", existingJob.id)
       .eq("user_id", user.id)
       .maybeSingle();
-    const inputsChangedAt = Math.max(Date.parse(seeker.updated_at), resume ? Date.parse(resume.updated_at) : 0);
     if (existingMatch && Date.parse(existingMatch.scored_at) > inputsChangedAt) {
       return NextResponse.json<ScoreJobResponse>({
         job_id: existingJob.id,

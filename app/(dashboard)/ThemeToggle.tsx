@@ -21,7 +21,7 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label="Toggle dark mode"
       title="Toggle dark mode"
-      className="inline-flex size-9 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-orange-400 dark:focus-visible:outline-orange-500"
+      className="pressable inline-flex size-9 items-center justify-center rounded-full text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-orange-500 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-orange-400"
     >
       {/* Moon in light mode (switch to dark), sun in dark mode (switch to light). */}
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5 dark:hidden">

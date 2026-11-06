@@ -674,6 +674,13 @@ export type Database = {
         Returns: undefined
       }
       delete_old_jobs: { Args: { retention_days?: number }; Returns: number }
+      shortlist_my_jobs: {
+        Args: { p_limit?: number }
+        Returns: {
+          job_id: string
+          rank: number
+        }[]
+      }
       shortlist_jobs: {
         Args: { p_limit?: number; p_live_days?: number; p_user_id: string }
         Returns: {

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif, Outfit } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -10,6 +10,21 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Headings.
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+});
+
+// One italic accent word per heading ("Disc<em>o</em>ver"). Single weight and
+// style: it is decoration, so keep the download small.
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: "italic",
 });
 
 export const metadata: Metadata = {
@@ -24,22 +39,22 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
-  ],
+  // Dark is the default theme, so the browser chrome matches it.
+  themeColor: "#15131f",
+  // Draw under the notch and home indicator; bars pad with env(safe-area-inset-*).
+  viewportFit: "cover",
 };
 
-// Runs before first paint so the page never flashes the wrong theme. A saved
-// choice ("light" / "dark" in localStorage) wins; otherwise follow the OS,
-// including live OS changes. Kept tiny and dependency-free on purpose.
-const themeScript = `(function(){try{var k="theme",r=document.documentElement,m=matchMedia("(prefers-color-scheme: dark)");function a(d){r.classList.toggle("dark",d)}var s=localStorage.getItem(k);a(s?s==="dark":m.matches);m.addEventListener("change",function(e){if(!localStorage.getItem(k))a(e.matches)})}catch(e){}})()`;
+// Runs before first paint so the page never flashes the wrong theme. Dark is
+// the default; a saved "light" (from the toggle) switches to cream. If storage
+// is blocked, the class set on <html> below keeps it dark.
+const themeScript = `(function(){try{document.documentElement.classList.toggle("dark",localStorage.getItem("theme")!=="light")}catch(e){}})()`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    // suppressHydrationWarning: the theme script adds "dark" to <html> before
-    // React hydrates, so its class differs from the server HTML by design.
-    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    // suppressHydrationWarning: the theme script may remove "dark" from <html>
+    // before React hydrates, so its class can differ from the server HTML.
+    <html lang="en" suppressHydrationWarning className={`dark ${geistSans.variable} ${geistMono.variable} ${outfit.variable} ${instrumentSerif.variable} h-full antialiased`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

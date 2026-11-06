@@ -12,12 +12,13 @@ export default function DashboardLayout({ children }: LayoutProps<"/">) {
     <div className="flex flex-1 flex-col">
       <Navbar
         userMenu={
-          <Suspense fallback={<div className="h-8 w-20 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-900" aria-busy="true" />}>
+          <Suspense fallback={<div className="h-8 w-20 animate-pulse rounded-full bg-zinc-100 dark:bg-zinc-900" aria-busy="true" />}>
             <UserMenu />
           </Suspense>
         }
       />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      {/* Bottom padding on phones clears the fixed tab bar and the home indicator. */}
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 md:pb-10">
         <Suspense fallback={<p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>}>{children}</Suspense>
       </main>
     </div>
