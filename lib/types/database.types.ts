@@ -129,6 +129,7 @@ export type Database = {
           company_id: string | null
           created_at: string
           id: string
+          last_error: string | null
           last_polled_at: string | null
           platform: string
           updated_at: string
@@ -139,6 +140,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          last_error?: string | null
           last_polled_at?: string | null
           platform: string
           updated_at?: string
@@ -149,6 +151,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           id?: string
+          last_error?: string | null
           last_polled_at?: string | null
           platform?: string
           updated_at?: string
@@ -450,6 +453,7 @@ export type Database = {
       matches: {
         Row: {
           created_at: string
+          digest_sent_at: string | null
           fit_score: number
           id: string
           job_id: string
@@ -464,6 +468,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          digest_sent_at?: string | null
           fit_score: number
           id?: string
           job_id: string
@@ -478,6 +483,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          digest_sent_at?: string | null
           fit_score?: number
           id?: string
           job_id?: string
@@ -668,6 +674,13 @@ export type Database = {
         Returns: undefined
       }
       delete_old_jobs: { Args: { retention_days?: number }; Returns: number }
+      shortlist_jobs: {
+        Args: { p_limit?: number; p_live_days?: number; p_user_id: string }
+        Returns: {
+          job_id: string
+          rank: number
+        }[]
+      }
     }
     Enums: {
       application_status:

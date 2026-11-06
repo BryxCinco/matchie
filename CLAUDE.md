@@ -15,9 +15,21 @@ AI job search agent: paste a JD, get a match score, track applications on a Kanb
 - `app/`: routes. The `(dashboard)` route group needs a signed-in user; `proxy.ts` guards `/dashboard`, `/tracker` and `/onboarding`.
 - `lib/`: domain logic (scrubber, LLM router, scoring, email classifier, resume parser).
 - `lib/supabase/`: `client.ts` (browser), `server.ts` (RSC and actions), `admin.ts` (service role, **workers only**).
-- `workers/`: GitHub Actions jobs.
-- `supabase/migrations/`: numbered SQL files, `001` through `005`.
-- `.github/workflows/`: `ci.yml`, `keepalive.yml`, `email-poller.yml`.
+- `workers/`: GitHub Actions jobs. `email-poller.ts` (every 2 hours); `ats-poller.ts` → `score-matches.ts` → `digest.ts` (daily, in that order).
+- `supabase/migrations/`: numbered SQL files, `001` through `006`.
+- `.github/workflows/`: `ci.yml`, `keepalive.yml`, `email-poller.yml`, `discovery.yml`.
+
+## Discovery pipeline (SPEC "The matching pipeline")
+
+The binding constraint is the LLM budget (~50 scoring calls a day on free tiers), so every stage before scoring is free SQL:
+
+1. **Ingest** (`ats-poller.ts`): public Greenhouse/Lever boards from `ats_companies`. Only PH and open-remote postings are kept (`isRelevantLocation` in `lib/ats.ts`).
+2. **Dedupe**: `jobs.canonical_hash` = hash of normalized company + title + location; every sighting is a `job_sources` row, and `seen_at` keeps live jobs out of `delete_old_jobs()`.
+3. **Rules filter + full-text shortlist**: `shortlist_jobs()` in SQL (migration 006). A null on the job side passes the rules.
+4. **LLM scoring** (`score-matches.ts`): capped per run; unscored jobs stay shortlisted for the next run.
+5. **Digest** (`digest.ts`): best unsent matches via Resend, then `matches.digest_sent_at` is stamped. Each match is emailed at most once.
+
+Never move a stage after scoring, or score before the SQL stages: it spends the budget on jobs the rules would have dropped.
 
 ## Hard rules
 
@@ -49,7 +61,7 @@ Local is Node 26; CI, Vercel and the workers run **Node 22**. Code that works lo
 - **No constructor parameter properties** (`constructor(readonly x: T)`). Type stripping rejects them. Declare fields and assign them.
 - No `enum` or `namespace` either (also not strippable). Use `as const` arrays.
 - **Any `lib/` file a worker imports, directly or indirectly, uses relative imports with the `.ts` extension** (`import { scrubPII } from "./pii-scrubber.ts"`). Node does not resolve the `@/` alias. `import type` from `@/` is fine, because it is erased.
-- To check a change on Node 22: `npx -y node@22 --test "lib/**/*.test.ts"`, and `npx -y node@22 workers/email-poller.ts` (it should exit on "Missing env var", not on a SyntaxError).
+- To check a change on Node 22: `npx -y node@22 --test "lib/**/*.test.ts"`, and `npx -y node@22 workers/<name>.ts` for each worker (it should exit on "Missing env var", not on a SyntaxError).
 
 ### 4. Next.js 16
 

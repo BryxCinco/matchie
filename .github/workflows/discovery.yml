@@ -1,0 +1,78 @@
+# Automated discovery (SPEC "The matching pipeline"), once a day:
+#   1. ATS poller: ingest + dedupe, then 60-day retention   workers/ats-poller.ts
+#   2. Scoring: rules filter + full-text shortlist + LLM    workers/score-matches.ts
+#   3. Digest: top matches by email through Resend          workers/digest.ts
+#
+# Logs are public on a public repo. The workers print counts and ids only.
+
+name: Discovery
+
+on:
+  schedule:
+    # 22:00 UTC = 06:00 Asia/Manila, so the digest is waiting in the morning.
+    # Actions schedules can start 10-30 minutes late.
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write # failure alert
+
+concurrency:
+  group: discovery
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      MATCHIE_USER_ID: ${{ secrets.MATCHIE_USER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # 22.18+ runs .ts files directly (type stripping); no tsx needed.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --omit=dev
+
+      - name: Poll ATS boards
+        run: node workers/ats-poller.ts
+
+      # Runs even if some boards failed: yesterday's jobs are still worth scoring.
+      - name: Score shortlist
+        if: ${{ !cancelled() }}
+        run: node workers/score-matches.ts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+      # Runs even if scoring failed: unsent matches from earlier runs still go out.
+      - name: Send digest
+        if: ${{ !cancelled() }}
+        run: node workers/digest.ts
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          RESEND_FROM: ${{ vars.RESEND_FROM }}
+
+      # GitHub sends no notification when a scheduled run fails; an issue does.
+      - name: Open an issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Discovery pipeline failing"
+          if [ -n "$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')" ]; then
+            echo "An open issue already exists; not filing another."
+            exit 0
+          fi
+          gh issue create --title "$title" \
+            --body "The discovery workflow failed: $RUN_URL. Check which step failed: ATS boards (ats_companies.last_error), LLM keys, or the Resend key and sender. Close this issue once it is fixed."
