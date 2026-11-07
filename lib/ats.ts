@@ -230,7 +230,7 @@ function omit(record: Record<string, unknown>, keys: string[]) {
 
 // --- Text helpers ------------------------------------------------------------
 
-function inferWorkSetup(text: string): WorkSetup | null {
+export function inferWorkSetup(text: string): WorkSetup | null {
   if (/\bhybrid\b/i.test(text)) return "hybrid";
   if (/\bremote\b/i.test(text)) return "remote";
   if (/\b(on-?site|in[- ]office)\b/i.test(text)) return "onsite";

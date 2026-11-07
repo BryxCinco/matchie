@@ -1,5 +1,7 @@
 // Email poller: reads recent mail over IMAP, classifies job-related messages,
 // stores them in email_messages, and moves applications on the tracker.
+// Job alerts (LinkedIn, JobStreet, Indeed) are parsed without an LLM and
+// their jobs go into jobs/job_sources, like the ATS poller's.
 // Run by .github/workflows/email-poller.yml:  node workers/email-poller.ts
 //
 // LOGGING RULE: this runs in a public repo, so Actions logs are public. Log
@@ -18,6 +20,8 @@ import { simpleParser } from "mailparser";
 import { createClient } from "../lib/supabase/admin.ts";
 import { describeError } from "../lib/describe-error.ts";
 import { ResumeContentSchema } from "../lib/resume.ts";
+import { canonicalHash, inferWorkSetup, normalizeCompanyName } from "../lib/ats.ts";
+import { parseJobAlert, type ParsedAlert } from "../lib/job-alert-parser.ts";
 import {
   classifyEmail,
   looksJobRelated,
@@ -36,7 +40,24 @@ const LOOKBACK_HOURS = Number(process.env.LOOKBACK_HOURS ?? 26);
 // Each classified email is one LLM call against the shared daily budget.
 const MAX_EMAILS_PER_RUN = Number(process.env.MAX_EMAILS_PER_RUN ?? 25);
 
-const stats = { fetched: 0, tooOld: 0, duplicate: 0, filtered: 0, classified: 0, linked: 0, statusChanged: 0, interviews: 0, failed: 0 };
+const stats = {
+  fetched: 0,
+  tooOld: 0,
+  duplicate: 0,
+  filtered: 0,
+  classified: 0,
+  linked: 0,
+  statusChanged: 0,
+  interviews: 0,
+  alerts: 0,
+  alertJobs: 0,
+  newJobs: 0,
+  failed: 0,
+};
+// Job alert senders. Gmail files these under Social or Promotions, which the
+// main search skips, so they are searched for separately.
+const ALERT_SENDERS =
+  "from:(jobalerts-noreply@linkedin.com OR jobs-noreply@linkedin.com OR jobs-listings@linkedin.com OR jobstreet.com OR jobstreet.com.ph OR indeed.com)";
 
 function requireEnv(name: string) {
   const value = process.env[name];
@@ -67,11 +88,17 @@ async function main() {
   try {
     const cutoff = new Date(Date.now() - LOOKBACK_HOURS * 3_600_000);
     // IMAP SINCE has day granularity; the exact cutoff is applied per message.
-    const query =
+    const newerThan = `newer_than:${Math.ceil(LOOKBACK_HOURS / 24) + 1}d`;
+    const queries =
       IMAP_HOST === "imap.gmail.com"
-        ? { gmraw: `newer_than:${Math.ceil(LOOKBACK_HOURS / 24) + 1}d -category:promotions -category:social` }
-        : { since: cutoff };
-    const uids = (await client.search(query, { uid: true })) || [];
+        ? [{ gmraw: `${newerThan} -category:promotions -category:social` }, { gmraw: `${newerThan} ${ALERT_SENDERS}` }]
+        : [{ since: cutoff }];
+    const found = await Promise.all(queries.map(async (query) => (await client.search(query, { uid: true })) || []));
+    const uids = [...new Set(found.flat())];
+    // Found only by the alert search (Social/Promotions): handled if it parses
+    // as an alert, otherwise skipped as before, so it never reaches the LLM.
+    const mainSearch = new Set(found[0]);
+    const alertsOnly = new Set(uids.filter((uid) => !mainSearch.has(uid)));
 
     // Newest first, so a backlog spends the per-run cap on fresh mail.
     for (const uid of uids.sort((a, b) => b - a)) {
@@ -88,7 +115,7 @@ async function main() {
         continue;
       }
 
-      await processMessage(supabase, message.source, receivedAt, uid, { userId, applications, statusById, knownNames });
+      await processMessage(supabase, message.source, receivedAt, uid, { userId, applications, statusById, knownNames, alertsOnly });
     }
   } finally {
     lock.release();
@@ -105,11 +132,12 @@ type RunContext = {
   applications: ApplicationRef[];
   statusById: Map<string, ApplicationRef["status"]>;
   knownNames: string[];
+  alertsOnly: Set<number>;
 };
 
 async function processMessage(supabase: Supabase, source: Buffer, receivedAt: Date, uid: number, run: RunContext) {
   const { userId, applications, statusById, knownNames } = run;
-  let email: IncomingEmail & { messageId: string };
+  let email: IncomingEmail & { messageId: string; html: string | null };
   try {
     const parsed = await simpleParser(source);
     email = {
@@ -117,6 +145,7 @@ async function processMessage(supabase: Supabase, source: Buffer, receivedAt: Da
       from: parsed.from?.text ?? "",
       subject: parsed.subject ?? "",
       text: parsed.text ?? "",
+      html: typeof parsed.html === "string" ? parsed.html : null,
       receivedAt,
     };
   } catch (error) {
@@ -134,6 +163,17 @@ async function processMessage(supabase: Supabase, source: Buffer, receivedAt: Da
     .maybeSingle();
   if (existing) {
     stats.duplicate++;
+    return;
+  }
+
+  // Job alerts: parsed here, never sent to an LLM.
+  const alert = parseJobAlert(email);
+  if (alert) {
+    await ingestAlert(supabase, userId, email, alert, uid);
+    return;
+  }
+  if (run.alertsOnly.has(uid)) {
+    stats.filtered++;
     return;
   }
 
@@ -241,6 +281,99 @@ async function recordInterview(
 }
 
 type Supabase = ReturnType<typeof createClient>;
+
+/**
+ * An alert's jobs go into jobs/job_sources, deduplicated by canonical_hash
+ * like the ATS poller's, so a job seen on Greenhouse and in a LinkedIn alert
+ * is one row with two sources. The email is stored last: if ingest fails it
+ * is not marked as seen, and the next run retries it.
+ */
+async function ingestAlert(supabase: Supabase, userId: string, email: IncomingEmail & { messageId: string }, alert: ParsedAlert, uid: number) {
+  try {
+    const companyIds = await companyIdsFor(supabase, alert.jobs.map((job) => job.company));
+    const seenAt = (email.receivedAt ?? new Date()).toISOString();
+
+    const byHash = new Map(alert.jobs.map((job) => [canonicalHash(job.company, job.title, job.location), job]));
+    const hashes = [...byHash.keys()];
+    const { data: inserted, error: insertError } = await supabase
+      .from("jobs")
+      .upsert(
+        hashes.map((hash) => {
+          const job = byHash.get(hash)!;
+          return {
+            canonical_hash: hash,
+            company_id: companyIds.get(normalizeCompanyName(job.company)) ?? null,
+            title: job.title,
+            // Alerts carry no description; the shortlist and scoring work from the title.
+            description: null,
+            location: job.location,
+            work_setup: job.location ? inferWorkSetup(job.location) : null,
+            source: alert.platform,
+            source_url: job.url,
+          };
+        }),
+        // An existing row (from a board or an earlier alert) wins.
+        { onConflict: "canonical_hash", ignoreDuplicates: true },
+      )
+      .select("id");
+    if (insertError) throw new Error(`insert jobs (${insertError.code}): ${insertError.message}`);
+
+    const { data: rows, error: selectError } = await supabase.from("jobs").select("id, canonical_hash").in("canonical_hash", hashes);
+    if (selectError) throw new Error(`select jobs (${selectError.code}): ${selectError.message}`);
+
+    // A re-sighting bumps seen_at, which keeps the job shortlisted and out of retention.
+    const { error: sourceError } = await supabase.from("job_sources").upsert(
+      rows.map((row) => {
+        const job = byHash.get(row.canonical_hash)!;
+        return { job_id: row.id, platform: alert.platform, source_url: job.url, raw_payload: { external_id: job.externalId, via: "email_alert" }, seen_at: seenAt };
+      }),
+      { onConflict: "job_id,platform" },
+    );
+    if (sourceError) throw new Error(`upsert job_sources (${sourceError.code}): ${sourceError.message}`);
+
+    const { error: emailError } = await supabase.from("email_messages").insert({
+      user_id: userId,
+      message_id: email.messageId,
+      from_addr: email.from.slice(0, 500),
+      subject: email.subject.slice(0, 1_000),
+      body: email.text.slice(0, 50_000),
+      received_at: seenAt,
+      classified_as: "job_alert",
+    });
+    // 23505: another run stored it first; the jobs above are idempotent.
+    if (emailError && emailError.code !== "23505") throw new Error(`insert email (${emailError.code}): ${emailError.message}`);
+
+    stats.alerts++;
+    stats.alertJobs += rows.length;
+    stats.newJobs += inserted.length;
+    console.log(`[email-poller] uid ${uid}: ${alert.platform} alert, ${rows.length} jobs (${inserted.length} new)`);
+  } catch (error) {
+    stats.failed++;
+    console.error(`[email-poller] uid ${uid}: job alert not ingested: ${describeError(error)}`);
+  }
+}
+
+/** normalized company name -> companies.id, creating the missing ones. */
+async function companyIdsFor(supabase: Supabase, names: string[]) {
+  const byNormalized = new Map<string, string>();
+  for (const name of names) {
+    const normalized = normalizeCompanyName(name);
+    if (normalized && !byNormalized.has(normalized)) byNormalized.set(normalized, name);
+  }
+  const normalizedNames = [...byNormalized.keys()];
+  if (normalizedNames.length === 0) return new Map<string, string>();
+
+  // ignoreDuplicates: an existing company keeps its own spelling.
+  const { error: upsertError } = await supabase.from("companies").upsert(
+    normalizedNames.map((normalized) => ({ name: byNormalized.get(normalized)!, name_normalized: normalized })),
+    { onConflict: "name_normalized", ignoreDuplicates: true },
+  );
+  if (upsertError) throw new Error(`upsert companies (${upsertError.code}): ${upsertError.message}`);
+
+  const { data, error } = await supabase.from("companies").select("id, name_normalized").in("name_normalized", normalizedNames);
+  if (error) throw new Error(`select companies (${error.code}): ${error.message}`);
+  return new Map(data.map((row) => [row.name_normalized, row.id]));
+}
 
 async function loadApplications(supabase: Supabase, userId: string): Promise<ApplicationRef[]> {
   const { data, error } = await supabase
