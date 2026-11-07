@@ -14,8 +14,7 @@ export default function TrackerPage() {
           </h1>
           <p className="max-w-xl text-zinc-600 dark:text-zinc-400">
             <span className="hidden md:inline">Drag a card to update its status.</span>
-            <span className="md:hidden">Swipe between columns; use &ldquo;Move to&rdquo; on a card to change its status.</span> Every move is
-            kept in its history.
+            <span className="md:hidden">Use &ldquo;Move to&rdquo; on a card to change its status.</span> Every move is kept in its history.
           </p>
         </header>
       </FadeIn>
@@ -66,10 +65,11 @@ async function BoardLoader() {
 
 function BoardSkeleton() {
   return (
-    <div aria-busy="true" className="flex gap-4 overflow-hidden">
-      {Array.from({ length: 4 }, (_, i) => (
-        <div key={i} className="h-96 w-72 shrink-0 animate-pulse rounded-3xl bg-zinc-200/60 dark:bg-zinc-900" />
+    <div aria-busy="true" className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {Array.from({ length: 7 }, (_, i) => (
+        <div key={i} className={`h-44 animate-pulse rounded-3xl bg-zinc-200/60 dark:bg-zinc-900 ${i === 4 ? "md:col-span-2" : ""}`} />
       ))}
+      <div className="h-32 animate-pulse rounded-3xl bg-zinc-200/40 md:col-span-2 lg:col-span-4 dark:bg-zinc-900/60" />
     </div>
   );
 }

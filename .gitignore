@@ -22,3 +22,6 @@ yarn-error.log*
 
 *.tsbuildinfo
 next-env.d.ts
+
+# OCR language data that tesseract.js caches when run under Node (tests, scripts)
+*.traineddata

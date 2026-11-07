@@ -92,7 +92,7 @@ export function PasteJdForm() {
 // The two setup errors from /api/score-job each have a page that fixes them.
 function FixLink({ error }: { error: string }) {
   const target = /resume/i.test(error)
-    ? { href: "/onboarding/resume", label: "Add your resume" }
+    ? { href: "/profile#resume", label: "Add your resume" }
     : /profile/i.test(error)
       ? { href: "/onboarding", label: "Complete your profile" }
       : null;

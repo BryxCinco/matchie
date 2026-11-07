@@ -13,7 +13,7 @@ export default function OnboardingPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">Your job-search profile</h1>
         <p className="mt-2 text-zinc-600 dark:text-zinc-400">
           Matchie uses these answers to filter and score jobs. Also{" "}
-          <Link href="/onboarding/resume" className="link">
+          <Link href="/profile#resume" className="link">
             add your resume
           </Link>{" "}
           for better matches.

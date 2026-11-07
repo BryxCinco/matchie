@@ -88,6 +88,24 @@ Data Analyst, Delta, 2019 - 2021`);
     );
   });
 
+  it("reads letter-spaced headings and dot-separated role lines (designed PDFs)", () => {
+    const result = parseResumeText(
+      [
+        "Sample Person",
+        "S K I L L S",
+        "React · TypeScript",
+        "W O R K   E X P E R I E N C E",
+        "Frontend Developer · Acme Corp Jan 2023 – Present",
+        "• Built the checkout page",
+      ].join("\n"),
+    );
+    assert.deepEqual(result.skills, ["React", "TypeScript"]);
+    assert.deepEqual(
+      result.experience.map((e) => [e.title, e.company, e.start, e.end]),
+      [["Frontend Developer", "Acme Corp", "2023-01", null]],
+    );
+  });
+
   it("returns empty fields for text with no recognizable structure", () => {
     const result = parseResumeText("just some words without any headings");
     assert.equal(result.contact.name, null);

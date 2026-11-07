@@ -28,15 +28,22 @@ export type BoardCard = {
   followUp: { subject: string; body: string } | null;
 };
 
-const columnId = (status: ApplicationStatus) => `column-${status}`;
+// The stages that wait on something, in order, and where applications end.
+const PIPELINE = ["saved", "applied", "screening", "assessment", "interview", "final", "offer"] as const satisfies readonly ApplicationStatus[];
+const OUTCOMES = ["accepted", "rejected", "ghosted", "withdrawn"] as const satisfies readonly ApplicationStatus[];
+/** Cards shown per tile before "Show N more". */
+const TILE_VISIBLE = 4;
+const COMPACT_VISIBLE = 2;
 
-// Layout: on desktop, a horizontally scrolling row of columns with drag and
-// drop. On phones, the same row snaps one column at a time, a chip bar jumps
-// between columns, and each card has a "Move to" menu, because dragging a
-// card across 11 columns with a thumb is not practical.
+// Layout: a bento grid of stage tiles; everything is visible without
+// scrolling sideways. Drag and drop works between any tiles. On phones each
+// card also has a "Move to" menu, because dragging with a thumb down a long
+// page is not practical.
 export function KanbanBoard({ initialCards }: { initialCards: BoardCard[] }) {
   const [cards, setCards] = useState(initialCards);
   const [error, setError] = useState<string | null>(null);
+  // Tiles showing all their cards instead of the first few.
+  const [expanded, setExpanded] = useState<Set<ApplicationStatus>>(new Set());
   // The card that just landed in a new column plays a short "settle" pulse.
   const [settledId, setSettledId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -88,85 +95,111 @@ export function KanbanBoard({ initialCards }: { initialCards: BoardCard[] }) {
     byStatus.get(card.status)?.push(card);
   }
 
+  const total = cards.length;
+  const active = cards.filter((c) => !CLOSED_STATUSES.has(c.status) && c.status !== "accepted" && c.status !== "saved").length;
+  const toggle = (status: ApplicationStatus) =>
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {error && (
-        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">
+        <p role="alert" className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">
           {error}
         </p>
       )}
 
-      <StatusJumpBar counts={byStatus} />
+      <p className="eyebrow">
+        <span>{total} applications</span>
+        <span className="text-zinc-950 dark:text-zinc-50">{active} in progress</span>
+      </p>
 
       <DragDropContext onDragEnd={handleDragEnd}>
-        {/* Bleeds past the page padding so the last column can scroll fully into view. */}
-        <div className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:scroll-px-6 sm:px-6 md:snap-none md:gap-4">
-          {APPLICATION_STATUSES.map((status) => (
-            <Column
+        {/* Bento grid: every stage is visible at once, no sideways scrolling.
+            Phones: one column. Tablets: two. Laptops and up: four, with
+            Interview as the wide hero tile and the outcomes in one strip. */}
+        <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {PIPELINE.map((status) => (
+            <Tile
               key={status}
               status={status}
               cards={byStatus.get(status) ?? []}
+              expanded={expanded.has(status)}
+              onToggle={() => toggle(status)}
               onMove={move}
               settledId={settledId}
               onSettled={() => setSettledId(null)}
+              className={status === "interview" ? "md:col-span-2" : ""}
             />
           ))}
+
+          <section aria-label="Outcomes" className="flex flex-col gap-3 rounded-3xl border border-zinc-200/70 bg-zinc-100/40 p-3 md:col-span-2 lg:col-span-4 dark:border-zinc-800/60 dark:bg-zinc-900/30">
+            <h2 className="px-1 font-sans text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">Outcomes</h2>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {OUTCOMES.map((status) => (
+                <Tile
+                  key={status}
+                  status={status}
+                  cards={byStatus.get(status) ?? []}
+                  expanded={expanded.has(status)}
+                  onToggle={() => toggle(status)}
+                  onMove={move}
+                  settledId={settledId}
+                  onSettled={() => setSettledId(null)}
+                  compact
+                />
+              ))}
+            </div>
+          </section>
         </div>
       </DragDropContext>
     </div>
   );
 }
 
-// Phones only: one chip per status; tapping scrolls that column into view.
-function StatusJumpBar({ counts }: { counts: Map<ApplicationStatus, BoardCard[]> }) {
-  return (
-    <nav aria-label="Jump to status" className="-mx-4 overflow-x-auto px-4 sm:-mx-6 sm:px-6 md:hidden">
-      <ul className="flex gap-2">
-        {APPLICATION_STATUSES.map((status) => (
-          <li key={status}>
-            <button
-              type="button"
-              onClick={() =>
-                document.getElementById(columnId(status))?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" })
-              }
-              className="pressable flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-zinc-200 bg-white px-3.5 text-xs font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-            >
-              {STATUS_LABELS[status]}
-              <span className="text-zinc-400 dark:text-zinc-500">{counts.get(status)?.length ?? 0}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
-}
-
-function Column({
+function Tile({
   status,
   cards,
+  expanded,
+  onToggle,
   onMove,
   settledId,
   onSettled,
+  compact = false,
+  className = "",
 }: {
   status: ApplicationStatus;
   cards: BoardCard[];
+  expanded: boolean;
+  onToggle: () => void;
   onMove: (cardId: string, to: ApplicationStatus) => void;
   settledId: string | null;
   onSettled: () => void;
+  compact?: boolean;
+  className?: string;
 }) {
   const closed = CLOSED_STATUSES.has(status);
   const won = status === "offer" || status === "accepted";
+  // Long stages fold, so one busy tile does not push the rest off screen.
+  // Order is not stored, so rendering only the first few is safe for drag.
+  const limit = compact ? COMPACT_VISIBLE : TILE_VISIBLE;
+  const shown = expanded ? cards : cards.slice(0, limit);
+  const hidden = cards.length - shown.length;
+
   return (
     <section
-      id={columnId(status)}
       aria-label={STATUS_LABELS[status]}
-      className={`flex w-[85vw] max-w-80 shrink-0 snap-start flex-col rounded-3xl border sm:w-72 ${
-        closed ? "border-zinc-200/70 bg-zinc-100/50 dark:border-zinc-800/60 dark:bg-zinc-900/40" : "border-zinc-200 bg-white/70 dark:border-zinc-800 dark:bg-zinc-900"
-      }`}
+      className={`flex min-w-0 flex-col rounded-3xl border ${
+        compact ? "border-zinc-200 bg-white/80 dark:border-zinc-800 dark:bg-zinc-900/70" : "border-zinc-200 bg-white/70 dark:border-zinc-800 dark:bg-zinc-900"
+      } ${className}`}
     >
-      <h2 className="flex items-center gap-2 px-4 pt-4 pb-2 font-sans text-sm font-semibold tracking-normal text-zinc-700 dark:text-zinc-200">
-        <span aria-hidden="true" className={`size-2 rounded-full ${won ? "bg-ios-green" : closed ? "bg-zinc-400 dark:bg-zinc-600" : "bg-accent"}`} />
-        {STATUS_LABELS[status]}
+      <h2 className={`flex items-center gap-2 font-sans text-sm font-semibold tracking-normal text-zinc-700 dark:text-zinc-200 ${compact ? "px-3 pt-3 pb-1.5" : "px-4 pt-4 pb-2"}`}>
+        <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${won ? "bg-ios-green" : closed ? "bg-zinc-400 dark:bg-zinc-600" : "bg-accent"}`} />
+        <span className="truncate">{STATUS_LABELS[status]}</span>
         <span className="ml-auto rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium tabular-nums text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
           {cards.length}
         </span>
@@ -176,11 +209,16 @@ function Column({
           <ul
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`m-1.5 mt-0 flex min-h-32 flex-1 flex-col gap-2 rounded-[1.25rem] p-1.5 transition-[background-color,box-shadow] duration-200 ${
-              snapshot.isDraggingOver ? "bg-orange-500/[0.07] ring-2 ring-orange-500/40 ring-inset" : ""
-            }`}
+            className={`m-1.5 mt-0 flex flex-1 flex-col gap-2 rounded-[1.25rem] p-1.5 transition-[background-color,box-shadow] duration-200 ${
+              compact ? "min-h-14" : "min-h-20"
+            } ${snapshot.isDraggingOver ? "bg-orange-500/[0.07] ring-2 ring-orange-500/40 ring-inset" : ""}`}
           >
-            {cards.map((card, index) => (
+            {cards.length === 0 && !snapshot.isDraggingOver && (
+              <li aria-hidden="true" className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-zinc-200 px-3 py-3 text-xs text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
+                Drop here
+              </li>
+            )}
+            {shown.map((card, index) => (
               <Draggable key={card.id} draggableId={card.id} index={index}>
                 {(dragProvided, dragSnapshot) => (
                   // The library owns the <li> transform (position); the visual
@@ -194,13 +232,13 @@ function Column({
                   >
                     <div
                       onAnimationEnd={card.id === settledId ? onSettled : undefined}
-                      className={`rounded-2xl border bg-white p-3.5 transition-[transform,box-shadow,border-color] duration-300 ease-ios dark:bg-zinc-950 ${
+                      className={`rounded-2xl border bg-white transition-[transform,box-shadow,border-color] duration-300 ease-ios dark:bg-zinc-950 ${compact ? "p-3" : "p-3.5"} ${
                         dragSnapshot.isDragging && !dragSnapshot.isDropAnimating
                           ? "scale-[1.04] rotate-[1.5deg] border-orange-500/60 shadow-[0_20px_40px_-12px_rgb(240_83_43/0.45)]"
                           : "border-zinc-200 shadow-sm hover:border-orange-500/40 dark:border-zinc-800"
-                      } ${card.id === settledId ? "animate-settle" : ""} ${closed ? "opacity-70" : ""}`}
+                      } ${card.id === settledId ? "animate-settle" : ""} ${closed ? "opacity-75" : ""}`}
                     >
-                      <CardBody card={card} />
+                      <CardBody card={card} compact={compact} />
                       {card.status === "ghosted" && <FollowUpDialog card={card} />}
                       <MoveMenu card={card} onMove={onMove} />
                     </div>
@@ -209,6 +247,17 @@ function Column({
               </Draggable>
             ))}
             {provided.placeholder}
+            {(hidden > 0 || (expanded && cards.length > limit)) && (
+              <li>
+                <button
+                  type="button"
+                  onClick={onToggle}
+                  className="pressable w-full rounded-full py-2 text-xs font-semibold text-orange-700 hover:bg-orange-500/10 dark:text-orange-300"
+                >
+                  {hidden > 0 ? `Show ${hidden} more` : "Show less"}
+                </button>
+              </li>
+            )}
           </ul>
         )}
       </Droppable>
@@ -228,16 +277,16 @@ function withSnapDrop(style: DraggingStyle | NotDraggingStyle | undefined, snaps
   };
 }
 
-function CardBody({ card }: { card: BoardCard }) {
+function CardBody({ card, compact = false }: { card: BoardCard; compact?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="line-clamp-2 font-display text-[15px] leading-snug font-medium">{card.title}</p>
+        <p className={`line-clamp-2 font-display leading-snug font-medium ${compact ? "text-sm" : "text-[15px]"}`}>{card.title}</p>
         <p className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
           {[card.company ?? "Company not set", card.location].filter(Boolean).join(" · ")}
         </p>
       </div>
-      {card.fitScore !== null && <FitBadge score={card.fitScore} />}
+      {card.fitScore !== null && !compact && <FitBadge score={card.fitScore} />}
     </div>
   );
 }

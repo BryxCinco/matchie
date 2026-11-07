@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { safeNext } from "@/lib/auth/safe-next";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { parseResumeText } from "@/lib/resume-parser";
 
 export type FormState = { error: string | null };
 
@@ -55,53 +54,4 @@ export async function saveSeekerProfile(_prev: FormState, formData: FormData): P
 
   // Onboarding continues to the dashboard; the profile page stays put.
   redirect(safeNext(formData.get("return_to")?.toString() ?? null, "/dashboard"));
-}
-
-const ResumeSchema = z.object({
-  resume_text: z
-    .string()
-    .trim()
-    .min(100, "That looks too short for a resume. Paste the full text.")
-    .max(50_000, "That resume is too long (max 50,000 characters)."),
-});
-
-export async function saveResume(_prev: FormState, formData: FormData): Promise<FormState> {
-  const parsed = ResumeSchema.safeParse({ resume_text: formData.get("resume_text") });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form and try again." };
-
-  // Parsed again on the server; the browser preview is never trusted.
-  const content = parseResumeText(parsed.data.resume_text);
-  if (content.skills.length === 0 && content.experience.length === 0) {
-    return {
-      error: 'No "Skills" or "Experience" section was found. Make sure those headings are on their own lines.',
-    };
-  }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/onboarding/resume");
-
-  // One master resume per user (partial unique index), which PostgREST
-  // cannot target with upsert, so update-or-insert.
-  const { data: master, error: readError } = await supabase
-    .from("resumes")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("is_master", true)
-    .maybeSingle();
-
-  const { error } = readError
-    ? { error: readError }
-    : master
-      ? await supabase.from("resumes").update({ content }).eq("id", master.id)
-      : await supabase.from("resumes").insert({ user_id: user.id, content, is_master: true });
-
-  if (error) {
-    console.error("[onboarding] saving resume failed", error);
-    return { error: "Could not save your resume. Please try again." };
-  }
-
-  redirect("/dashboard");
 }

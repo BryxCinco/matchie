@@ -40,7 +40,10 @@ const MONTHS: Record<string, string> = {
 };
 
 export function parseResumeText(text: string): ResumeContent {
-  const lines = text.replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
+  const lines = text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((l) => unspaceLetters(l.trim()));
   const sections = splitSections(lines);
 
   return {
@@ -54,6 +57,20 @@ export function parseResumeText(text: string): ResumeContent {
     skills: parseSkills(sections.skills),
     experience: parseExperience(sections.experience),
   };
+}
+
+// Letter-spaced headings ("S K I L L S", "W O R K  E X P E R I E N C E") are
+// common in designed resumes (Canva and the like), and PDF text extraction
+// and OCR keep the spaces. A run of 2+ spaces separates words.
+function unspaceLetters(line: string) {
+  if (line.length > 80) return line;
+  const tokens = line.split(/\s+/);
+  const single = tokens.filter((t) => t.length === 1).length;
+  if (tokens.length < 4 || single / tokens.length < 0.6) return line;
+  return line
+    .split(/\s{2,}/)
+    .map((word) => word.replace(/\s+/g, ""))
+    .join(" ");
 }
 
 function headingOf(line: string): { section: Section; rest: string } | null {
@@ -172,7 +189,7 @@ function toEntry(draft: Draft): ResumeContent["experience"][number] | null {
   const withoutDates = range ? headerText.replace(range[0], " ") : headerText;
 
   const parts = withoutDates
-    .split(/\s+(?:at|@)\s+|\s*[|–—,]\s*|\s+-\s+/)
+    .split(/\s+(?:at|@)\s+|\s*[|–—,·•]\s*|\s+-\s+/)
     .map((p) => p.replace(/[()]/g, "").trim())
     .filter(Boolean);
   if (parts.length === 0) return null;

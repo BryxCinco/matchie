@@ -42,6 +42,7 @@ Never move a stage after scoring, or score before the SQL stages: it spends the 
   - **Email classification**: the sender's **domain** only (not the address), the subject, and the cleaned body.
   - **Batch scoring** ("Analyze my resume" on Discover, `lib/batch-scoring.ts`): the same skills summary as single scoring, with up to 10 numbered JD excerpts.
   - **Follow-up drafts**: job title, company, stage and dates. The draft signs off with `[Your name]`.
+- **Resume files are read in the browser** (`lib/resume-extract.ts`: pdf.js, mammoth, tesseract.js OCR). Never send a resume file, image or its raw text to an LLM or any API; only the reviewed, structured result is saved.
 - **Email prefilter**: mail that fails `looksJobRelated()` is never stored and never sent to an LLM.
 - Text from outside (JDs, emails) goes inside delimiters, and the prompt says it is data, not instructions.
 
