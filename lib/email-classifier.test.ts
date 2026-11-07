@@ -4,6 +4,7 @@ import {
   buildPrompt,
   classifyEmail,
   cleanBody,
+  interviewFromLLM,
   looksJobRelated,
   statusFromClassification,
   type ApplicationRef,
@@ -133,13 +134,49 @@ describe("classifyEmail", () => {
       linked_application_id: APPS[1].id,
       confidence: 93,
       reasoning: "Clear rejection from Globex.",
+      interview: null,
     });
     assert.ok(!sent.includes("Juan"), "user's name leaked to the LLM");
+  });
+
+  it("reads the interview date and round from an invite", async () => {
+    reply = {
+      classification: "interview_invite",
+      application_ref: 1,
+      confidence: 95,
+      reasoning: "Invite to a second interview.",
+      interview_at: "2026-11-12T14:00:00+08:00",
+      interview_round: 2,
+    };
+    const invite = { ...email, subject: "Second interview", receivedAt: new Date("2026-11-08T09:00:00+08:00") };
+    const result = await classifyEmail(invite, APPS);
+    assert.deepEqual(result.interview, { scheduled_at: "2026-11-12T06:00:00.000Z", round: 2 });
+    assert.ok(sent.includes("Received: Sunday, November 8, 2026"), "received date not in the prompt");
   });
 
   it("drops an application number that is not in the list", async () => {
     reply = { classification: "offer", application_ref: 7, confidence: 90, reasoning: "Offer." };
     const result = await classifyEmail(email, APPS);
     assert.equal(result.linked_application_id, null);
+  });
+});
+
+describe("interviewFromLLM", () => {
+  const received = new Date("2026-11-08T09:00:00+08:00");
+
+  it("keeps a plausible date with an offset", () => {
+    assert.deepEqual(interviewFromLLM("2026-11-10T10:30:00+08:00", null, received), { scheduled_at: "2026-11-10T02:30:00.000Z", round: null });
+  });
+
+  it("drops dates without a time zone, in the past, or far ahead", () => {
+    for (const at of ["2026-11-10T10:30:00", "2026-10-01T10:00:00+08:00", "2027-11-10T10:00:00+08:00", "next Tuesday", ""]) {
+      assert.equal(interviewFromLLM(at, null, received).scheduled_at, null, at);
+    }
+  });
+
+  it("keeps rounds 1-10 only", () => {
+    assert.equal(interviewFromLLM(null, 3, received).round, 3);
+    assert.equal(interviewFromLLM(null, 0, received).round, null);
+    assert.equal(interviewFromLLM(null, 42, received).round, null);
   });
 });

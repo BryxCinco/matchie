@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
   { href: "/discover", label: "Discover", icon: CompassIcon },
   { href: "/tracker", label: "Tracker", icon: BoardIcon },
+  { href: "/analytics", label: "Analytics", icon: ChartIcon },
   { href: "/profile", label: "Profile", icon: null },
   { href: "/settings", label: "Settings", icon: GearIcon },
 ] as const;
@@ -79,7 +80,7 @@ export function Navbar({ userMenu, avatar }: { userMenu: ReactNode; avatar: Reac
       </header>
 
       <nav aria-label="Tabs" className="glass pb-safe fixed inset-x-0 bottom-0 z-30 border-t md:hidden">
-        <ul className="mx-auto grid max-w-lg grid-cols-5">
+        <ul className="mx-auto grid max-w-lg grid-cols-6">
           {NAV_LINKS.map(({ href, label, icon: Icon }) => {
             const active = isActive(href);
             return (
@@ -87,7 +88,7 @@ export function Navbar({ userMenu, avatar }: { userMenu: ReactNode; avatar: Reac
                 <Link
                   href={href}
                   aria-current={active ? "page" : undefined}
-                  className={`pressable flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
+                  className={`pressable flex h-14 min-w-0 flex-col items-center justify-center gap-0.5 text-[10px] font-medium min-[400px]:text-[11px] ${
                     active ? "text-orange-600 dark:text-orange-400" : "text-zinc-500 dark:text-zinc-400"
                   }`}
                 >
@@ -174,6 +175,16 @@ function BoardIcon({ active }: IconProps) {
       <rect x="3.5" y="4" width="5" height="16" rx="1.5" fill={active ? "currentColor" : "none"} />
       <rect x="9.5" y="4" width="5" height="11" rx="1.5" fill={active ? "currentColor" : "none"} />
       <rect x="15.5" y="4" width="5" height="7" rx="1.5" fill={active ? "currentColor" : "none"} />
+    </svg>
+  );
+}
+
+function ChartIcon({ active }: IconProps) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+      <rect x="4" y="12" width="4" height="8" rx="1.2" fill={active ? "currentColor" : "none"} />
+      <rect x="10" y="7" width="4" height="13" rx="1.2" fill={active ? "currentColor" : "none"} />
+      <rect x="16" y="3.5" width="4" height="16.5" rx="1.2" fill={active ? "currentColor" : "none"} />
     </svg>
   );
 }

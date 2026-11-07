@@ -21,8 +21,10 @@ import { ResumeContentSchema } from "../lib/resume.ts";
 import {
   classifyEmail,
   looksJobRelated,
+  MIN_CONFIDENCE_TO_APPLY,
   statusFromClassification,
   type ApplicationRef,
+  type EmailClassification,
   type IncomingEmail,
 } from "../lib/email-classifier.ts";
 
@@ -34,7 +36,7 @@ const LOOKBACK_HOURS = Number(process.env.LOOKBACK_HOURS ?? 26);
 // Each classified email is one LLM call against the shared daily budget.
 const MAX_EMAILS_PER_RUN = Number(process.env.MAX_EMAILS_PER_RUN ?? 25);
 
-const stats = { fetched: 0, tooOld: 0, duplicate: 0, filtered: 0, classified: 0, linked: 0, statusChanged: 0, failed: 0 };
+const stats = { fetched: 0, tooOld: 0, duplicate: 0, filtered: 0, classified: 0, linked: 0, statusChanged: 0, interviews: 0, failed: 0 };
 
 function requireEnv(name: string) {
   const value = process.env[name];
@@ -86,7 +88,7 @@ async function main() {
         continue;
       }
 
-      await processMessage(supabase, userId, message.source, receivedAt, uid, applications, statusById, knownNames);
+      await processMessage(supabase, message.source, receivedAt, uid, { userId, applications, statusById, knownNames });
     }
   } finally {
     lock.release();
@@ -98,16 +100,15 @@ async function main() {
   if (stats.failed > 0) process.exitCode = 1;
 }
 
-async function processMessage(
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-  source: Buffer,
-  receivedAt: Date,
-  uid: number,
-  applications: ApplicationRef[],
-  statusById: Map<string, ApplicationRef["status"]>,
-  knownNames: string[],
-) {
+type RunContext = {
+  userId: string;
+  applications: ApplicationRef[];
+  statusById: Map<string, ApplicationRef["status"]>;
+  knownNames: string[];
+};
+
+async function processMessage(supabase: Supabase, source: Buffer, receivedAt: Date, uid: number, run: RunContext) {
+  const { userId, applications, statusById, knownNames } = run;
   let email: IncomingEmail & { messageId: string };
   try {
     const parsed = await simpleParser(source);
@@ -116,6 +117,7 @@ async function processMessage(
       from: parsed.from?.text ?? "",
       subject: parsed.subject ?? "",
       text: parsed.text ?? "",
+      receivedAt,
     };
   } catch (error) {
     // Unparseable mail is rare and not job data we can use; count, do not store.
@@ -205,9 +207,42 @@ async function processMessage(
     statusById.set(appId, next); // a later email in the same run sees the new status
     console.log(`[email-poller] application ${appId}: ${current} -> ${next}`);
   }
+
+  await recordInterview(supabase, appId, row.id, verdict, statusById.get(appId));
 }
 
-async function loadApplications(supabase: ReturnType<typeof createClient>, userId: string): Promise<ApplicationRef[]> {
+// An invite becomes an interviews row (round, and the date if the email
+// states one), which fills the dashboard's "Upcoming interviews". Same bar
+// as a status change: confident, and not on a closed application.
+async function recordInterview(
+  supabase: Supabase,
+  appId: string,
+  emailMessageId: string,
+  verdict: EmailClassification,
+  status: ApplicationRef["status"] | undefined,
+) {
+  if (verdict.classification !== "interview_invite" || !verdict.interview) return;
+  if (verdict.confidence < MIN_CONFIDENCE_TO_APPLY) return;
+  if (status === "accepted" || status === "rejected" || status === "withdrawn") return;
+
+  const { data: round, error } = await supabase.rpc("record_email_interview", {
+    p_application_id: appId,
+    p_email_message_id: emailMessageId,
+    p_round: verdict.interview.round ?? undefined,
+    p_scheduled_at: verdict.interview.scheduled_at ?? undefined,
+  });
+  if (error) {
+    stats.failed++;
+    console.error(`[email-poller] application ${appId}: interview not recorded (${error.code}): ${error.message}`);
+    return;
+  }
+  stats.interviews++;
+  console.log(`[email-poller] application ${appId}: interview round ${round}${verdict.interview.scheduled_at ? " scheduled" : ", date not stated"}`);
+}
+
+type Supabase = ReturnType<typeof createClient>;
+
+async function loadApplications(supabase: Supabase, userId: string): Promise<ApplicationRef[]> {
   const { data, error } = await supabase
     .from("applications")
     .select("id, status, last_activity_at, job:jobs(title, company:companies(name))")
@@ -225,7 +260,7 @@ async function loadApplications(supabase: ReturnType<typeof createClient>, userI
 }
 
 // The user's own name, so the scrubber removes it from email bodies.
-async function loadKnownNames(supabase: ReturnType<typeof createClient>, userId: string) {
+async function loadKnownNames(supabase: Supabase, userId: string) {
   const { data } = await supabase.from("resumes").select("content").eq("user_id", userId).eq("is_master", true).maybeSingle();
   const parsed = ResumeContentSchema.safeParse(data?.content ?? {});
   const name = parsed.success ? parsed.data.contact.name : null;

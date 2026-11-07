@@ -55,10 +55,12 @@ export type SeekerPreferences = Pick<
 
 // Budget guards. A long JD is mostly boilerplate (benefits, EEO text); the
 // requirements are near the top. ~4 chars per token.
-const MAX_JD_CHARS = 7_000;
-const MAX_SKILLS = 40;
+const MAX_JD_CHARS = 3_500;
+// Ten skills, the ones the job mentions first (relevantSkills), so the cut
+// drops skills the job does not ask about, not the ones it does.
+const MAX_SKILLS = 10;
 const MAX_ROLES = 5;
-const MAX_HIGHLIGHTS_PER_ROLE = 4;
+const MAX_HIGHLIGHTS_PER_ROLE = 1;
 
 // Shared with batch scoring (lib/batch-scoring.ts) so both score alike.
 export const SCORING_RUBRIC = `Rubric for fit_score:
@@ -112,11 +114,11 @@ export function buildPrompt(jobDescription: string, candidate: CandidateSummary,
   const jd = jobDescription.trim();
   const truncatedJd = jd.length > MAX_JD_CHARS ? `${jd.slice(0, MAX_JD_CHARS)}\n[truncated]` : jd;
 
-  return `${INSTRUCTIONS}\n\n<job>\n${truncatedJd}\n</job>\n\n<candidate>\n${buildCandidateBlock(candidate, preferences)}\n</candidate>`;
+  return `${INSTRUCTIONS}\n\n<job>\n${truncatedJd}\n</job>\n\n<candidate>\n${buildCandidateBlock(candidate, preferences, truncatedJd)}\n</candidate>`;
 }
 
 /** The candidate as the model sees it: skills summary and preferences, never the raw resume. */
-export function buildCandidateBlock(candidate: CandidateSummary, preferences: SeekerPreferences) {
+export function buildCandidateBlock(candidate: CandidateSummary, preferences: SeekerPreferences, jobText = "") {
   const experience = candidate.experience
     .slice(0, MAX_ROLES)
     .map((role) => {
@@ -130,7 +132,7 @@ export function buildCandidateBlock(candidate: CandidateSummary, preferences: Se
     .join("\n");
 
   return [
-    `Skills: ${list(candidate.skills.slice(0, MAX_SKILLS))}`,
+    `Skills: ${list(relevantSkills(candidate.skills, jobText).slice(0, MAX_SKILLS))}`,
     `Total experience: ${candidate.yearsExperience ?? "not stated"} years`,
     `Experience:\n${experience || "none listed"}`,
     `Target roles: ${list(preferences.target_roles)}`,
@@ -141,6 +143,17 @@ export function buildCandidateBlock(candidate: CandidateSummary, preferences: Se
     `Preferred job locations: ${list(preferences.preferred_locations ?? [])}`,
     `Industries to avoid: ${list(preferences.avoid_industries)}`,
   ].join("\n");
+}
+
+/** Skills the job text names come first (in the candidate's order), then the
+ * rest. Whole-word match, so "Go" does not match "Google". */
+export function relevantSkills(skills: string[], jobText: string) {
+  const text = jobText.toLowerCase();
+  const named = (skill: string) => {
+    const escaped = skill.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return escaped !== "" && new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`).test(text);
+  };
+  return [...skills.filter(named), ...skills.filter((skill) => !named(skill))];
 }
 
 // matches.fit_score is a smallint, and the model sometimes repeats a skill.

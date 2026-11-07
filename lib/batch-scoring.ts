@@ -32,6 +32,9 @@ export type BatchJob = {
 /** The requirements are near the top of a JD; benefits and legal text follow. */
 const EXCERPT_CHARS = 1_800;
 export const MAX_BATCH_JOBS = 10;
+// Ten results of ~100 tokens each; the router's 500 default would cut the
+// list off mid-way.
+const BATCH_MAX_TOKENS = 1_500;
 
 const BatchSchema = z.object({
   results: z.array(
@@ -73,7 +76,7 @@ ${SCORING_RUBRIC}
 ${jobBlocks}
 
 <candidate>
-${buildCandidateBlock(candidate, preferences)}
+${buildCandidateBlock(candidate, preferences, jobBlocks)}
 </candidate>`;
 }
 
@@ -84,7 +87,10 @@ export async function scoreJobsBatch(
 ): Promise<{ scores: Map<string, MatchResult>; provider: LLMProvider }> {
   const batch = jobs.slice(0, MAX_BATCH_JOBS);
   const knownNames = candidate.fullName ? [candidate.fullName] : [];
-  const { result, provider } = await callLLM(buildBatchPrompt(batch, candidate, preferences), BatchSchema, { knownNames });
+  const { result, provider } = await callLLM(buildBatchPrompt(batch, candidate, preferences), BatchSchema, {
+    knownNames,
+    maxTokens: BATCH_MAX_TOKENS,
+  });
 
   // Map numbers back to ids. Unknown numbers are ignored; a job the model
   // skipped stays unscored and is shortlisted again next time.

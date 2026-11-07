@@ -12,7 +12,7 @@
 // Env:
 //   MATCHIE_USER_ID, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 //   GEMINI_API_KEY, GROQ_API_KEY
-//   Optional: MAX_SCORES_PER_RUN (30), SCORE_DELAY_MS (4000)
+//   Optional: MAX_SCORES_PER_RUN (30), SCORE_DELAY_MS (10000)
 
 import { createClient } from "../lib/supabase/admin.ts";
 import { describeError } from "../lib/describe-error.ts";
@@ -22,7 +22,7 @@ import { toCandidateSummary } from "../lib/resume.ts";
 const MAX_SCORES_PER_RUN = Number(process.env.MAX_SCORES_PER_RUN ?? 30);
 // Gemini's free tier allows few requests per minute; spacing calls avoids
 // burning the Groq fallback on rate limits we caused ourselves.
-const SCORE_DELAY_MS = Number(process.env.SCORE_DELAY_MS ?? 4_000);
+const SCORE_DELAY_MS = Number(process.env.SCORE_DELAY_MS ?? 10_000);
 // Both providers down: stop instead of failing the rest of the shortlist.
 const MAX_CONSECUTIVE_FAILURES = 3;
 

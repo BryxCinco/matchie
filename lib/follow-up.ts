@@ -37,6 +37,10 @@ Rules:
 }
 
 export async function draftFollowUp(context: FollowUpContext, options: { knownNames?: string[] } = {}): Promise<FollowUpDraft> {
-  const { result } = await callLLM(buildFollowUpPrompt(context), DraftSchema, { knownNames: options.knownNames });
+  const { result } = await callLLM(buildFollowUpPrompt(context), DraftSchema, {
+    knownNames: options.knownNames,
+    // A short email plus subject; above the router's 500 default for safety.
+    maxTokens: 800,
+  });
   return { subject: result.subject.trim(), body: result.body.trim() };
 }

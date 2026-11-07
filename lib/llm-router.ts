@@ -25,6 +25,9 @@ export type CallLLMOptions = {
   /** Per request, per provider. Keep it short in Route Handlers (Vercel Hobby
    * functions time out at 10s); workers can afford longer. */
   timeoutMs?: number;
+  /** Cap on the answer's tokens (default 500). Raise it for answers that are
+   * long by design, such as a batch of ten scores. */
+  maxTokens?: number;
 };
 
 // Overridable so a retired model is a config change, not a deploy.
@@ -34,6 +37,14 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
 // List what a key can use: GET https://api.groq.com/openai/v1/models
 const GROQ_MODEL = process.env.GROQ_MODEL ?? "openai/gpt-oss-120b";
 const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_TOKENS = 500;
+// Both default models think before they answer, and both providers count
+// those thinking tokens against the output cap. Without this headroom a cap
+// sized for the JSON answer cuts the answer off mid-object, which fails
+// validation and costs a second (repair) call: the opposite of the point.
+const THINKING_HEADROOM_TOKENS = 512;
+
+type Limits = { timeoutMs: number; maxTokens: number };
 
 /** The model answered, but not with JSON that matches the schema, even after one repair attempt. */
 // No constructor parameter properties: Node's type stripping (workers, tests)
@@ -58,17 +69,20 @@ export async function callLLM<T>(
   // CRITICAL: nothing below this line may see the unscrubbed prompt.
   const { scrubbed, map } = scrubPII(prompt, { knownNames: options.knownNames });
   const fullPrompt = withSchemaInstructions(scrubbed, schema);
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const limits: Limits = {
+    timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+  };
 
   try {
-    const result = await generateValidated("gemini", fullPrompt, schema, map, timeoutMs);
+    const result = await generateValidated("gemini", fullPrompt, schema, map, limits);
     return { result, provider: "gemini" };
   } catch (error) {
     if (!shouldFallBack(error)) throw error;
     console.warn(`[llm-router] gemini model=${GEMINI_MODEL} failed (${describeError(error)}), falling back to groq model=${GROQ_MODEL}`);
   }
 
-  const result = await generateValidated("groq", fullPrompt, schema, map, timeoutMs);
+  const result = await generateValidated("groq", fullPrompt, schema, map, limits);
   return { result, provider: "groq" };
 }
 
@@ -79,10 +93,10 @@ async function generateValidated<T>(
   prompt: string,
   schema: z.ZodType<T>,
   map: Record<string, string>,
-  timeoutMs: number,
+  limits: Limits,
 ): Promise<T> {
   const started = Date.now();
-  const first = parseAndValidate(await generate(provider, prompt, timeoutMs), schema, map);
+  const first = parseAndValidate(await generate(provider, prompt, limits), schema, map);
   if (first.ok) {
     logSuccess(provider, started, 1);
     return first.value;
@@ -93,7 +107,7 @@ async function generateValidated<T>(
     `${prompt}\n\nYour previous answer was invalid: ${first.issues}\n` +
     "Return ONLY valid JSON matching the schema above. No prose, no markdown fences.";
 
-  const second = parseAndValidate(await generate(provider, repairPrompt, timeoutMs), schema, map);
+  const second = parseAndValidate(await generate(provider, repairPrompt, limits), schema, map);
   if (second.ok) {
     logSuccess(provider, started, 2);
     return second.value;
@@ -101,15 +115,19 @@ async function generateValidated<T>(
   throw new LLMValidationError(provider, second.issues);
 }
 
-async function generate(provider: LLMProvider, prompt: string, timeoutMs: number): Promise<string> {
-  return provider === "gemini" ? generateGemini(prompt, timeoutMs) : generateGroq(prompt, timeoutMs);
+async function generate(provider: LLMProvider, prompt: string, limits: Limits): Promise<string> {
+  return provider === "gemini" ? generateGemini(prompt, limits) : generateGroq(prompt, limits);
 }
 
-async function generateGemini(prompt: string, timeoutMs: number): Promise<string> {
+async function generateGemini(prompt: string, { timeoutMs, maxTokens }: Limits): Promise<string> {
   const model = new GoogleGenerativeAI(requireEnv("GEMINI_API_KEY")).getGenerativeModel(
     {
       model: GEMINI_MODEL,
-      generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+        maxOutputTokens: maxTokens + THINKING_HEADROOM_TOKENS,
+      },
     },
     { timeout: timeoutMs },
   );
@@ -117,7 +135,7 @@ async function generateGemini(prompt: string, timeoutMs: number): Promise<string
   return response.response.text();
 }
 
-async function generateGroq(prompt: string, timeoutMs: number): Promise<string> {
+async function generateGroq(prompt: string, { timeoutMs, maxTokens }: Limits): Promise<string> {
   // maxRetries 1: this is already the fallback; don't stack long backoffs on
   // top of a failed Gemini call.
   const groq = new Groq({ apiKey: requireEnv("GROQ_API_KEY"), timeout: timeoutMs, maxRetries: 1 });
@@ -126,6 +144,7 @@ async function generateGroq(prompt: string, timeoutMs: number): Promise<string> 
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
     temperature: 0.2,
+    max_completion_tokens: maxTokens + THINKING_HEADROOM_TOKENS,
     // gpt-oss models think before answering; scoring and triage need little
     // of it, and less is faster. Other models reject the parameter.
     ...(GROQ_MODEL.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" as const } : {}),

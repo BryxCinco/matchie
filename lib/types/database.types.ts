@@ -280,34 +280,47 @@ export type Database = {
         Row: {
           application_id: string
           created_at: string
+          email_message_id: string | null
           id: string
           prep_notes: string | null
           round: number
           scheduled_at: string | null
+          source: string
           updated_at: string
           user_id: string
         }
         Insert: {
           application_id: string
           created_at?: string
+          email_message_id?: string | null
           id?: string
           prep_notes?: string | null
           round: number
           scheduled_at?: string | null
+          source?: string
           updated_at?: string
           user_id: string
         }
         Update: {
           application_id?: string
           created_at?: string
+          email_message_id?: string | null
           id?: string
           prep_notes?: string | null
           round?: number
           scheduled_at?: string | null
+          source?: string
           updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "interviews_email_message_id_fkey"
+            columns: ["email_message_id"]
+            isOneToOne: false
+            referencedRelation: "email_messages"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "interviews_application_id_user_id_fkey"
             columns: ["application_id", "user_id"]
@@ -710,6 +723,15 @@ export type Database = {
         Returns: undefined
       }
       delete_old_jobs: { Args: { retention_days?: number }; Returns: number }
+      record_email_interview: {
+        Args: {
+          p_application_id: string
+          p_email_message_id: string
+          p_round?: number
+          p_scheduled_at?: string
+        }
+        Returns: number
+      }
       shortlist_my_jobs: {
         Args: { p_limit?: number }
         Returns: {
