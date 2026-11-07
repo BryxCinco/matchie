@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "../actions";
@@ -44,6 +45,16 @@ export default function SettingsPage() {
       </FadeIn>
 
       <FadeIn delay={0.15}>
+        <Group title="Privacy">
+          <Row title="How Matchie handles your data" description="Your resume is read on your device, and your name and contact details never reach an AI model.">
+            <Link href="/privacy" className="btn-secondary min-h-11 self-start px-5">
+              Read the privacy notice
+            </Link>
+          </Row>
+        </Group>
+      </FadeIn>
+
+      <FadeIn delay={0.2}>
         <Group title="Danger zone" danger>
           <Row title="Delete account" description="Permanently removes your profile, resume, matches and applications. This cannot be undone.">
             <DeleteAccountButton />
