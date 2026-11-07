@@ -34,7 +34,9 @@ async function BoardLoader() {
   // and (user_id, job_id) is unique, so there is at most one.
   const { data, error } = await supabase
     .from("applications")
-    .select("id, status, last_activity_at, job:jobs(id, title, location, company:companies(name), matches(fit_score))")
+    .select(
+      "id, status, last_activity_at, applied_at, follow_up_subject, follow_up_draft, job:jobs(id, title, location, company:companies(name), matches(fit_score))",
+    )
     .eq("user_id", user.id)
     .order("last_activity_at", { ascending: false });
 
@@ -55,6 +57,8 @@ async function BoardLoader() {
     company: app.job?.company?.name ?? null,
     location: app.job?.location ?? null,
     fitScore: app.job?.matches[0]?.fit_score ?? null,
+    appliedAt: app.applied_at,
+    followUp: app.follow_up_subject && app.follow_up_draft ? { subject: app.follow_up_subject, body: app.follow_up_draft } : null,
   }));
 
   return <KanbanBoard initialCards={cards} />;

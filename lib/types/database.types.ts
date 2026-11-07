@@ -70,6 +70,9 @@ export type Database = {
           applied_at: string | null
           contacts: Json
           created_at: string
+          follow_up_draft: string | null
+          follow_up_drafted_at: string | null
+          follow_up_subject: string | null
           id: string
           job_id: string
           last_activity_at: string
@@ -83,6 +86,9 @@ export type Database = {
           applied_at?: string | null
           contacts?: Json
           created_at?: string
+          follow_up_draft?: string | null
+          follow_up_drafted_at?: string | null
+          follow_up_subject?: string | null
           id?: string
           job_id: string
           last_activity_at?: string
@@ -96,6 +102,9 @@ export type Database = {
           applied_at?: string | null
           contacts?: Json
           created_at?: string
+          follow_up_draft?: string | null
+          follow_up_drafted_at?: string | null
+          follow_up_subject?: string | null
           id?: string
           job_id?: string
           last_activity_at?: string
@@ -682,6 +691,13 @@ export type Database = {
         Returns: {
           job_id: string
           rank: number
+        }[]
+      }
+      mark_ghosted_applications: {
+        Args: { p_days?: number }
+        Returns: {
+          application_id: string
+          user_id: string
         }[]
       }
       shortlist_jobs: {

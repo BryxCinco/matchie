@@ -2,9 +2,14 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
+import { AnalyzeResumeButton } from "./AnalyzeResumeButton";
 import { DiscoverList, type DiscoverItem } from "./DiscoverList";
 
 export const metadata: Metadata = { title: "Discover" };
+
+// "Analyze my resume" (a server action on this page) is one LLM call, plus
+// the Groq fallback if Gemini is busy; the default limit could cut it off.
+export const maxDuration = 60;
 
 const JOB_COLUMNS =
   "id, title, location, work_setup, salary_min, salary_max, source, source_url, posted_at, created_at, company:companies(name)";
@@ -20,6 +25,7 @@ export default function DiscoverPage() {
           Jobs from the boards Matchie watches, filtered by your profile and ranked by fit.
         </p>
       </header>
+      <AnalyzeResumeButton />
       <Suspense fallback={<DiscoverSkeleton />}>
         <DiscoverLoader />
       </Suspense>
@@ -117,7 +123,13 @@ async function DiscoverLoader() {
           </p>
         )}
       </div>
-      <DiscoverList initialItems={items} shortlistFailed={!!shortlistRes.error || !!unscoredError} />
+      {/* Keyed by the data: DiscoverList keeps items in state, so a refresh
+          with new scores (after "Analyze") must remount it. */}
+      <DiscoverList
+        key={dataKey(items)}
+        initialItems={items}
+        shortlistFailed={!!shortlistRes.error || !!unscoredError}
+      />
     </>
   );
 }
@@ -126,6 +138,15 @@ async function DiscoverLoader() {
 // reading the clock allowed during render with cacheComponents.
 function requestTime() {
   return Date.now();
+}
+
+// Short fingerprint of which jobs are listed and how they are scored.
+function dataKey(items: DiscoverItem[]) {
+  let hash = 0;
+  for (const item of items) {
+    for (const ch of `${item.jobId}:${item.match?.fitScore ?? "-"};`) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  }
+  return `${items.length}-${hash}`;
 }
 
 // jobs.salary_* are monthly PHP.

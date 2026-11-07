@@ -13,6 +13,7 @@ import {
 } from "@hello-pangea/dnd";
 import { APPLICATION_STATUSES, CLOSED_STATUSES, STATUS_LABELS, type ApplicationStatus } from "@/lib/application-status";
 import { moveApplication } from "./actions";
+import { FollowUpDialog } from "./FollowUpDialog";
 
 export type BoardCard = {
   id: string;
@@ -22,6 +23,9 @@ export type BoardCard = {
   company: string | null;
   location: string | null;
   fitScore: number | null;
+  appliedAt: string | null;
+  /** Drafted by the ghosting checker when the card went to ghosted. */
+  followUp: { subject: string; body: string } | null;
 };
 
 const columnId = (status: ApplicationStatus) => `column-${status}`;
@@ -197,6 +201,7 @@ function Column({
                       } ${card.id === settledId ? "animate-settle" : ""} ${closed ? "opacity-70" : ""}`}
                     >
                       <CardBody card={card} />
+                      {card.status === "ghosted" && <FollowUpDialog card={card} />}
                       <MoveMenu card={card} onMove={onMove} />
                     </div>
                   </li>

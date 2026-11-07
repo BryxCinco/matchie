@@ -38,10 +38,10 @@ export function QuickActions() {
     <>
       <ul className="divide-y divide-zinc-200 overflow-hidden rounded-2xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
         <li>
-          <ActionRow onClick={show} icon={<SparkIcon />} title="Score a job description" subtitle="Paste a posting, get a fit score" primary />
+          <ActionRow href="/discover" icon={<CompassIcon />} title="Find jobs for my resume" subtitle="Analyze your resume against new jobs" primary />
         </li>
         <li>
-          <ActionRow href="/discover" icon={<CompassIcon />} title="Browse Discover" subtitle="New jobs from watched boards" />
+          <ActionRow onClick={show} icon={<SparkIcon />} title="Score a job description" subtitle="Paste a posting, get a fit score" />
         </li>
         <li>
           <ActionRow href="/tracker" icon={<BoardIcon />} title="Open tracker" subtitle="Move applications along" />

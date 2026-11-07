@@ -15,8 +15,8 @@ AI job search agent: paste a JD, get a match score, track applications on a Kanb
 - `app/`: routes. The `(dashboard)` route group needs a signed-in user; `proxy.ts` guards `/dashboard`, `/tracker` and `/onboarding`.
 - `lib/`: domain logic (scrubber, LLM router, scoring, email classifier, resume parser).
 - `lib/supabase/`: `client.ts` (browser), `server.ts` (RSC and actions), `admin.ts` (service role, **workers only**).
-- `workers/`: GitHub Actions jobs. `email-poller.ts` (every 2 hours); `ats-poller.ts` → `score-matches.ts` → `digest.ts` (daily, in that order).
-- `supabase/migrations/`: numbered SQL files, `001` through `008`.
+- `workers/`: GitHub Actions jobs. `email-poller.ts` (every 2 hours); `ats-poller.ts` → `ghosting-checker.ts` → `score-matches.ts` → `digest.ts` (daily, in that order).
+- `supabase/migrations/`: numbered SQL files, `001` through `009`.
 - `.github/workflows/`: `ci.yml`, `keepalive.yml`, `email-poller.yml`, `discovery.yml`.
 
 ## Discovery pipeline (SPEC "The matching pipeline")
@@ -40,6 +40,8 @@ Never move a stage after scoring, or score before the SQL stages: it spends the 
 - Send the minimum the model needs:
   - **Match scoring**: the JD plus a skills summary (`toCandidateSummary`). Never the raw resume or contact details.
   - **Email classification**: the sender's **domain** only (not the address), the subject, and the cleaned body.
+  - **Batch scoring** ("Analyze my resume" on Discover, `lib/batch-scoring.ts`): the same skills summary as single scoring, with up to 10 numbered JD excerpts.
+  - **Follow-up drafts**: job title, company, stage and dates. The draft signs off with `[Your name]`.
 - **Email prefilter**: mail that fails `looksJobRelated()` is never stored and never sent to an LLM.
 - Text from outside (JDs, emails) goes inside delimiters, and the prompt says it is data, not instructions.
 

@@ -1,7 +1,8 @@
 # Automated discovery (SPEC "The matching pipeline"), once a day:
 #   1. ATS poller: ingest + dedupe, then 60-day retention   workers/ats-poller.ts
-#   2. Scoring: rules filter + full-text shortlist + LLM    workers/score-matches.ts
-#   3. Digest: top matches by email through Resend          workers/digest.ts
+#   2. Ghosting: 14 quiet days -> ghosted + follow-up draft workers/ghosting-checker.ts
+#   3. Scoring: rules filter + full-text shortlist + LLM    workers/score-matches.ts
+#   4. Digest: top matches by email through Resend          workers/digest.ts
 #
 # Logs are public on a public repo. The workers print counts and ids only.
 
@@ -43,6 +44,15 @@ jobs:
 
       - name: Poll ATS boards
         run: node workers/ats-poller.ts
+
+      # 14 quiet days -> ghosted, with a follow-up draft. Before scoring, so the
+      # few drafts get the LLM budget ahead of the many scores.
+      - name: Detect ghosting
+        if: ${{ !cancelled() }}
+        run: node workers/ghosting-checker.ts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
       # Runs even if some boards failed: yesterday's jobs are still worth scoring.
       - name: Score shortlist
