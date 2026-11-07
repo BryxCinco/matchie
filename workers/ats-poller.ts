@@ -44,11 +44,13 @@ async function main() {
     .order("last_polled_at", { ascending: true, nullsFirst: true });
   if (error) throw new Error(`Could not load ats_companies (${error.code}): ${error.message}`);
 
+  const preferredPlaces = await loadPreferredPlaces(supabase);
+
   stats.boards = boards.length;
   const queue = [...boards];
   await Promise.all(
     Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
-      for (let board = queue.shift(); board; board = queue.shift()) await pollBoard(supabase, board);
+      for (let board = queue.shift(); board; board = queue.shift()) await pollBoard(supabase, board, preferredPlaces);
     }),
   );
 
@@ -68,7 +70,21 @@ async function main() {
   if (stats.dbErrors > 0 || (stats.boards > 0 && stats.boardsFailed === stats.boards)) process.exitCode = 1;
 }
 
-async function pollBoard(supabase: Supabase, board: Board) {
+// Single user for now: keep postings in the places they said they want to
+// work (e.g. "Singapore"), on top of PH and open remote. Optional: without
+// MATCHIE_USER_ID the poller keeps only PH and open remote.
+async function loadPreferredPlaces(supabase: Supabase) {
+  const userId = process.env.MATCHIE_USER_ID;
+  if (!userId) return [];
+  const { data, error } = await supabase.from("seeker_profiles").select("preferred_locations").eq("user_id", userId).maybeSingle();
+  if (error) {
+    console.warn(`[ats-poller] preferred locations not loaded (${error.code}); keeping PH and open remote only`);
+    return [];
+  }
+  return (data?.preferred_locations ?? []).map((place) => place.trim()).filter((place) => place.length >= 2);
+}
+
+async function pollBoard(supabase: Supabase, board: Board, preferredPlaces: string[]) {
   if (!(SUPPORTED_PLATFORMS as readonly string[]).includes(board.platform)) {
     stats.unsupported++;
     await markPolled(supabase, board.id, `platform ${board.platform} not supported yet`);
@@ -92,7 +108,7 @@ async function pollBoard(supabase: Supabase, board: Board) {
     const companyName = board.company?.name ?? postings.find((p) => p.companyName)?.companyName ?? prettifyToken(board.board_token);
     const companyId = board.company_id ?? (await linkCompany(supabase, board.id, companyName));
 
-    const relevant = KEEP_ALL_LOCATIONS ? postings : postings.filter((p) => isRelevantLocation(p.location, p.workSetup));
+    const relevant = KEEP_ALL_LOCATIONS ? postings : postings.filter((p) => isRelevantLocation(p.location, p.workSetup, preferredPlaces));
     stats.offLocation += postings.length - relevant.length;
 
     // Two openings with the same title and location are one job.

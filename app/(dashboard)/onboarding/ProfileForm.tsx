@@ -11,6 +11,8 @@ export type ProfileFormValues = {
   work_setup: ("onsite" | "hybrid" | "remote")[];
   min_salary: number | null;
   years_experience: number | null;
+  home_city: string | null;
+  preferred_locations: string[];
 };
 
 const WORK_SETUPS = [
@@ -95,6 +97,34 @@ export function ProfileForm({ initial, returnTo = "/dashboard" }: { initial: Pro
           placeholder="e.g. Gambling"
           initial={initial.avoid_industries}
           max={20}
+        />
+      </Section>
+
+      <Section title="Where you want to work">
+        <div>
+          <label htmlFor="home_city" className={labelClass}>
+            Your city
+          </label>
+          <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">City only, never your street address. Used to judge commutes for onsite and hybrid jobs.</p>
+          <input
+            id="home_city"
+            name="home_city"
+            type="text"
+            autoComplete="address-level2"
+            maxLength={120}
+            placeholder="e.g. Quezon City"
+            defaultValue={initial.home_city ?? ""}
+            className={inputClass}
+          />
+        </div>
+
+        <TagInput
+          name="preferred_locations"
+          label="Preferred locations (optional)"
+          hint="Cities or countries. Jobs there rank higher, and Matchie also collects jobs from them. Remote jobs are always included."
+          placeholder="e.g. Makati, Cebu, Singapore"
+          initial={initial.preferred_locations}
+          max={10}
         />
       </Section>
 

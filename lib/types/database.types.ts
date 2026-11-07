@@ -629,13 +629,33 @@ export type Database = {
         }
         Relationships: []
       }
+      search_vocabulary: {
+        Row: {
+          alias_group: string | null
+          soft: boolean
+          term: string
+        }
+        Insert: {
+          alias_group?: string | null
+          soft?: boolean
+          term: string
+        }
+        Update: {
+          alias_group?: string | null
+          soft?: boolean
+          term?: string
+        }
+        Relationships: []
+      }
       seeker_profiles: {
         Row: {
           avoid_industries: string[]
           created_at: string
+          home_city: string | null
           id: string
           max_commute_km: number | null
           min_salary: number | null
+          preferred_locations: string[]
           skills: string[]
           target_roles: string[]
           updated_at: string
@@ -646,9 +666,11 @@ export type Database = {
         Insert: {
           avoid_industries?: string[]
           created_at?: string
+          home_city?: string | null
           id?: string
           max_commute_km?: number | null
           min_salary?: number | null
+          preferred_locations?: string[]
           skills?: string[]
           target_roles?: string[]
           updated_at?: string
@@ -659,9 +681,11 @@ export type Database = {
         Update: {
           avoid_industries?: string[]
           created_at?: string
+          home_city?: string | null
           id?: string
           max_commute_km?: number | null
           min_salary?: number | null
+          preferred_locations?: string[]
           skills?: string[]
           target_roles?: string[]
           updated_at?: string

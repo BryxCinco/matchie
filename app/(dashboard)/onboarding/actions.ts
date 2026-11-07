@@ -23,6 +23,14 @@ const ProfileSchema = z.object({
   work_setup: z.array(z.enum(["onsite", "hybrid", "remote"])),
   min_salary: optionalInt(10_000_000),
   years_experience: optionalInt(60),
+  // City only: it is sent to the LLM (lib/match-scoring.ts), so no street address.
+  home_city: z
+    .string()
+    .trim()
+    .max(120)
+    .refine((v) => !/\d/.test(v), "Enter only your city, without a street address or number.")
+    .transform((v) => v || null),
+  preferred_locations: tagList(10),
 });
 
 function strings(formData: FormData, name: string) {
@@ -37,6 +45,8 @@ export async function saveSeekerProfile(_prev: FormState, formData: FormData): P
     work_setup: strings(formData, "work_setup"),
     min_salary: formData.get("min_salary"),
     years_experience: formData.get("years_experience"),
+    home_city: formData.get("home_city") ?? "",
+    preferred_locations: strings(formData, "preferred_locations"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form and try again." };
 

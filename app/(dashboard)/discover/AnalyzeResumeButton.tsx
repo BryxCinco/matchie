@@ -27,13 +27,14 @@ export function AnalyzeResumeButton() {
         </h2>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
           {pending ? (
-            "Reading your resume against the top 10 unscored jobs…"
+            "Reading your resume against your top jobs…"
           ) : result?.ok ? (
             result.scored === 0 ? (
               "No new jobs match your profile right now. New ones arrive every morning."
             ) : (
               <>
                 Scored {result.scored} job{result.scored === 1 ? "" : "s"}
+                {result.rescored > 0 && ` (${result.rescored} re-scored for your updated profile)`}
                 {" · "}
                 <span className="font-semibold text-green-700 dark:text-green-400">
                   {result.strong} strong fit{result.strong === 1 ? "" : "s"} (80+)

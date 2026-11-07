@@ -21,7 +21,7 @@ export async function loadCandidate(supabase: SupabaseClient<Database>, userId: 
   const [{ data: seeker, error: seekerError }, { data: resume, error: resumeError }] = await Promise.all([
     supabase
       .from("seeker_profiles")
-      .select("target_roles, min_salary, work_setup, avoid_industries, skills, years_experience, updated_at")
+      .select("target_roles, min_salary, work_setup, avoid_industries, skills, years_experience, home_city, preferred_locations, updated_at")
       .eq("user_id", userId)
       .maybeSingle(),
     supabase.from("resumes").select("content, updated_at").eq("user_id", userId).eq("is_master", true).maybeSingle(),

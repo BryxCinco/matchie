@@ -54,6 +54,8 @@ const preferences: SeekerPreferences = {
   min_salary: 80000,
   work_setup: ["remote", "hybrid"],
   avoid_industries: ["gambling"],
+  home_city: "Quezon City",
+  preferred_locations: ["Makati", "Singapore"],
 };
 
 const JD = "Senior React Developer. Must have React, TypeScript, GraphQL. Hybrid in BGC, Taguig. PHP 90,000-120,000/month.";
@@ -61,7 +63,7 @@ const JD = "Senior React Developer. Must have React, TypeScript, GraphQL. Hybrid
 describe("buildPrompt", () => {
   it("includes the JD, skills and every preference", () => {
     const prompt = buildPrompt(JD, candidate, preferences);
-    for (const part of ["Senior React Developer", "React, TypeScript, PostgreSQL", "4 years", "Full-stack Developer (3 yrs)", "PHP 80,000/month", "remote, hybrid", "gambling"]) {
+    for (const part of ["Senior React Developer", "React, TypeScript, PostgreSQL", "4 years", "Full-stack Developer (3 yrs)", "PHP 80,000/month", "remote, hybrid", "gambling", "Based in: Quezon City", "Makati, Singapore"]) {
       assert.ok(prompt.includes(part), `missing "${part}"`);
     }
   });

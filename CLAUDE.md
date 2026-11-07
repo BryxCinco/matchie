@@ -16,7 +16,7 @@ AI job search agent: paste a JD, get a match score, track applications on a Kanb
 - `lib/`: domain logic (scrubber, LLM router, scoring, email classifier, resume parser).
 - `lib/supabase/`: `client.ts` (browser), `server.ts` (RSC and actions), `admin.ts` (service role, **workers only**).
 - `workers/`: GitHub Actions jobs. `email-poller.ts` (every 2 hours); `ats-poller.ts` → `ghosting-checker.ts` → `score-matches.ts` → `digest.ts` (daily, in that order).
-- `supabase/migrations/`: numbered SQL files, `001` through `009`.
+- `supabase/migrations/`: numbered SQL files, `001` through `012`.
 - `.github/workflows/`: `ci.yml`, `keepalive.yml`, `email-poller.yml`, `discovery.yml`.
 
 ## Discovery pipeline (SPEC "The matching pipeline")
@@ -38,7 +38,7 @@ Never move a stage after scoring, or score before the SQL stages: it spends the 
 - **Every** LLM call goes through `callLLM()` in `lib/llm-router.ts`. It runs `scrubPII()` before sending and `unscrubPII()` on the parsed result. Never call the Gemini or Groq SDKs, or `fetch` an LLM API, anywhere else.
 - Pass the user's name in `knownNames` so the scrubber catches it.
 - Send the minimum the model needs:
-  - **Match scoring**: the JD plus a skills summary (`toCandidateSummary`). Never the raw resume or contact details.
+  - **Match scoring**: the JD plus a skills summary (`toCandidateSummary`) and preferences, including `home_city` (city only; the form rejects digits). Never the raw resume or contact details.
   - **Email classification**: the sender's **domain** only (not the address), the subject, and the cleaned body.
   - **Batch scoring** ("Analyze my resume" on Discover, `lib/batch-scoring.ts`): the same skills summary as single scoring, with up to 10 numbered JD excerpts.
   - **Follow-up drafts**: job title, company, stage and dates. The draft signs off with `[Your name]`.

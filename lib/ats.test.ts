@@ -132,6 +132,12 @@ describe("isRelevantLocation", () => {
       assert.ok(!isRelevantLocation(loc, null), loc);
     }
   });
+
+  it("keeps postings in the user's preferred locations", () => {
+    assert.ok(isRelevantLocation("Singapore", null, ["singapore"]));
+    assert.ok(isRelevantLocation("Tokyo, Japan", "onsite", ["Japan"]));
+    assert.ok(!isRelevantLocation("London, UK", null, ["Singapore"]));
+  });
 });
 
 describe("parseMinYears", () => {

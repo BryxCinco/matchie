@@ -87,7 +87,7 @@ async function PreferencesLoader() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("seeker_profiles")
-    .select("target_roles, skills, avoid_industries, work_setup, min_salary, years_experience")
+    .select("target_roles, skills, avoid_industries, work_setup, min_salary, years_experience, home_city, preferred_locations")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -98,6 +98,8 @@ async function PreferencesLoader() {
     work_setup: [],
     min_salary: null,
     years_experience: null,
+    home_city: null,
+    preferred_locations: [],
   };
   return <ProfileForm initial={initial} returnTo="/profile" />;
 }

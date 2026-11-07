@@ -42,7 +42,7 @@ async function main() {
   const [{ data: seeker, error: seekerError }, { data: resume, error: resumeError }] = await Promise.all([
     supabase
       .from("seeker_profiles")
-      .select("target_roles, min_salary, work_setup, avoid_industries, skills, years_experience")
+      .select("target_roles, min_salary, work_setup, avoid_industries, skills, years_experience, home_city, preferred_locations")
       .eq("user_id", userId)
       .maybeSingle(),
     supabase.from("resumes").select("content").eq("user_id", userId).eq("is_master", true).maybeSingle(),

@@ -203,16 +203,19 @@ export function canonicalHash(companyName: string, title: string, location: stri
 // --- Location filter ---------------------------------------------------------
 // The registry is Philippine employers, but many post worldwide from one
 // board. Storing a 500-job global board would fill the free tier with jobs
-// the user cannot take, so the poller keeps PH-based and open-remote roles.
+// the user cannot take, so the poller keeps PH-based and open-remote roles,
+// plus anything in the user's preferred locations (seeker_profiles).
 
 const PH_PLACES =
   /\b(philippines|pilipinas|manila|makati|taguig|bgc|bonifacio|pasig|ortigas|quezon city|mandaluyong|san juan|alabang|muntinlupa|para[nñ]aque|pasay|cebu|davao|iloilo|clark|pampanga|baguio|cavite|laguna|bacolod|cagayan de oro|batangas|bulacan)\b/i;
 const OPEN_REMOTE_REGIONS = /\b(apac|asia|asia[- ]pacific|southeast asia|sea|anywhere|worldwide|global)\b/i;
 const REMOTE_WORDS = /\b(remote|anywhere|worldwide|global|work from home|wfh|fully remote|100% remote)\b/gi;
 
-export function isRelevantLocation(location: string | null, workSetup: WorkSetup | null) {
+export function isRelevantLocation(location: string | null, workSetup: WorkSetup | null, preferredPlaces: readonly string[] = []) {
   if (!location) return true; // unknown: keep; the LLM sees the JD
   if (PH_PLACES.test(location) || /\bPH\b/.test(location)) return true;
+  const lower = location.toLowerCase();
+  if (preferredPlaces.some((place) => place && lower.includes(place.toLowerCase()))) return true;
 
   const remote = workSetup === "remote" || new RegExp(REMOTE_WORDS.source, "i").test(location);
   if (!remote) return false;

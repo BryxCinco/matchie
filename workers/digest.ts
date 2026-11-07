@@ -9,7 +9,8 @@
 //   MATCHIE_USER_ID, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 //   RESEND_API_KEY, NEXT_PUBLIC_APP_URL
 //   Optional: RESEND_FROM ("Matchie <onboarding@resend.dev>"), DIGEST_TO (defaults
-//             to the account email), DIGEST_SIZE (10), MIN_DIGEST_SCORE (60)
+//             to the account email), DIGEST_SIZE (10), MIN_DIGEST_SCORE (40),
+//             DIGEST_FLOOR (5)
 
 import { createHash } from "node:crypto";
 import { createClient } from "../lib/supabase/admin.ts";
@@ -17,8 +18,11 @@ import { describeError } from "../lib/describe-error.ts";
 import { buildDigestEmail, type DigestItem } from "../lib/digest-email.ts";
 
 const DIGEST_SIZE = Number(process.env.DIGEST_SIZE ?? 10);
-// Below this a "match" is noise; it stays unsent and simply ages out.
-const MIN_DIGEST_SCORE = Number(process.env.MIN_DIGEST_SCORE ?? 60);
+// Matches at or above this go out first, best first.
+const MIN_DIGEST_SCORE = Number(process.env.MIN_DIGEST_SCORE ?? 40);
+// A slow day still sends at least this many: when too few matches clear the
+// bar, the digest is topped up with the most recently scored ones below it.
+const DIGEST_FLOOR = Number(process.env.DIGEST_FLOOR ?? 5);
 // resend.dev is Resend's shared test domain: it only delivers to the email
 // address that owns the Resend account. Verify a domain to send elsewhere.
 const RESEND_FROM = process.env.RESEND_FROM || "Matchie <onboarding@resend.dev>";
@@ -35,25 +39,12 @@ async function main() {
   const appUrl = requireEnv("NEXT_PUBLIC_APP_URL");
   const supabase = createClient();
 
-  // Over-fetch, then drop pasted jobs (the user has seen them) and saved ones.
-  const { data: candidates, error } = await supabase
-    .from("matches")
-    .select("id, job_id, fit_score, reasoning, job:jobs(title, location, source, source_url, company:companies(name))")
-    .eq("user_id", userId)
-    .is("digest_sent_at", null)
-    .gte("fit_score", MIN_DIGEST_SCORE)
-    .order("fit_score", { ascending: false })
-    .limit(DIGEST_SIZE * 3);
-  if (error) throw new Error(`Could not load matches (${error.code}): ${error.message}`);
-
-  const jobIds = candidates.map((m) => m.job_id);
-  const { data: saved, error: savedError } = jobIds.length
-    ? await supabase.from("applications").select("job_id").eq("user_id", userId).in("job_id", jobIds)
-    : { data: [], error: null };
-  if (savedError) throw new Error(`Could not load applications (${savedError.code})`);
-  const savedJobIds = new Set(saved.map((a) => a.job_id));
-
-  const picked = candidates.filter((m) => m.job && m.job.source !== "manual" && !savedJobIds.has(m.job_id)).slice(0, DIGEST_SIZE);
+  const qualified = await unsentMatches(supabase, userId, { minScore: MIN_DIGEST_SCORE, limit: DIGEST_SIZE });
+  let picked = qualified;
+  if (picked.length < DIGEST_SIZE && picked.length < DIGEST_FLOOR) {
+    const recent = await unsentMatches(supabase, userId, { belowScore: MIN_DIGEST_SCORE, limit: DIGEST_FLOOR - picked.length });
+    picked = [...picked, ...recent];
+  }
   if (picked.length === 0) {
     console.log("[digest] no new matches; no email sent");
     return;
@@ -61,12 +52,12 @@ async function main() {
 
   const to = process.env.DIGEST_TO || (await accountEmail(supabase, userId));
   const items: DigestItem[] = picked.map((m) => ({
-    title: m.job!.title,
-    company: m.job!.company?.name ?? null,
-    location: m.job!.location,
+    title: m.job.title,
+    company: m.job.company?.name ?? null,
+    location: m.job.location,
     fitScore: m.fit_score,
     reasoning: m.reasoning,
-    url: m.job!.source_url,
+    url: m.job.source_url,
   }));
   const { subject, html, text } = buildDigestEmail(items, appUrl);
 
@@ -98,7 +89,42 @@ async function main() {
     );
   if (stampError) throw new Error(`Email sent (${body.id}) but matches not stamped (${stampError.code}); a re-run today is deduplicated`);
 
-  console.log(`[digest] sent ${picked.length} matches, resend id ${body.id}`);
+  console.log(`[digest] sent ${picked.length} matches (${qualified.length} at ${MIN_DIGEST_SCORE}+), resend id ${body.id}`);
+}
+
+/**
+ * Unsent matches on worker-found jobs the user has not saved. Pasted jobs are
+ * left out (the user has seen them), and so are saved ones.
+ * minScore: best first, at or above the score. belowScore: under the score,
+ * most recently scored first (the top-up for a slow day).
+ */
+async function unsentMatches(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  options: { minScore?: number; belowScore?: number; limit: number },
+) {
+  let query = supabase
+    .from("matches")
+    .select("id, job_id, fit_score, reasoning, scored_at, job:jobs!inner(title, location, source, source_url, company:companies(name))")
+    .eq("user_id", userId)
+    .is("digest_sent_at", null)
+    .neq("job.source", "manual");
+  query =
+    options.belowScore === undefined
+      ? query.gte("fit_score", options.minScore ?? 0).order("fit_score", { ascending: false })
+      : query.lt("fit_score", options.belowScore).order("scored_at", { ascending: false });
+  // Over-fetch, then drop saved jobs.
+  const { data: candidates, error } = await query.limit(options.limit * 3);
+  if (error) throw new Error(`Could not load matches (${error.code}): ${error.message}`);
+
+  const jobIds = candidates.map((m) => m.job_id);
+  const { data: saved, error: savedError } = jobIds.length
+    ? await supabase.from("applications").select("job_id").eq("user_id", userId).in("job_id", jobIds)
+    : { data: [], error: null };
+  if (savedError) throw new Error(`Could not load applications (${savedError.code})`);
+  const savedJobIds = new Set(saved.map((a) => a.job_id));
+
+  return candidates.filter((m) => !savedJobIds.has(m.job_id)).slice(0, options.limit);
 }
 
 async function accountEmail(supabase: ReturnType<typeof createClient>, userId: string) {
