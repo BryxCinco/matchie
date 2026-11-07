@@ -45,11 +45,22 @@ export default function SettingsPage() {
       </FadeIn>
 
       <FadeIn delay={0.15}>
-        <Group title="Privacy">
+        <Group title="About">
           <Row title="How Matchie handles your data" description="Your resume is read on your device, and your name and contact details never reach an AI model.">
             <Link href="/privacy" className="btn-secondary min-h-11 self-start px-5">
               Read the privacy notice
             </Link>
+          </Row>
+          <Divider />
+          <Row title="About Matchie" description="Why it exists, the rules it never breaks, and how it is built.">
+            <div className="flex flex-wrap gap-2">
+              <Link href="/about" className="btn-secondary min-h-11 px-5">
+                About
+              </Link>
+              <Link href="/" className="btn-secondary min-h-11 px-5">
+                Home page
+              </Link>
+            </div>
           </Row>
         </Group>
       </FadeIn>

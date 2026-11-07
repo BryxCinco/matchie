@@ -132,20 +132,11 @@ function useScrolled(threshold = 8) {
   return scrolled;
 }
 
+// The Matchie app icon (public/logo.png, 128px for sharp 2-4x screens). A
+// plain <img>: a tiny static file, so next/image would only add a round trip.
 function Logo({ className }: { className: string }) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 100 100" className={className}>
-      <defs>
-        <linearGradient id="matchie-logo" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ff8a3d" />
-          <stop offset="1" stopColor="#f0532b" />
-        </linearGradient>
-      </defs>
-      <rect width="100" height="100" rx="26" fill="#15131f" />
-      <circle cx="50" cy="50" r="28.5" fill="none" stroke="url(#matchie-logo)" strokeWidth="9" />
-      <circle cx="50" cy="50" r="11" fill="url(#matchie-logo)" />
-    </svg>
-  );
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/logo.png" alt="" width={128} height={128} className={`${className} shrink-0`} />;
 }
 
 // --- Tab icons (24px, 1.8 stroke; filled when active, as iOS does) ---------

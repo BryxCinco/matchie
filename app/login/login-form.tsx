@@ -14,7 +14,8 @@ export function LoginForm() {
   const callbackError = searchParams.get("error");
 
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("login");
+  // "Get started" on the landing page links here with ?mode=signup.
+  const [mode, setMode] = useState<Mode>(searchParams.get("mode") === "signup" ? "signup" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);

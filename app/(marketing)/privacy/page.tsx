@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import Link from "next/link";
 
-// Public and static: readable before signing up, so it sits outside the
-// (dashboard) group and reads no request data. Keep it in step with the PII
+// Public and static: readable before signing up, so it is part of the public
+// site (the (marketing) group, which supplies the header and footer). Keep it in step with the PII
 // rule in CLAUDE.md; this page is the promise that rule keeps.
 
 export const metadata: Metadata = {
@@ -15,12 +14,9 @@ const UPDATED = "November 9, 2026";
 
 export default function PrivacyPage() {
   return (
-    <main className="pt-safe pb-safe flex-1 bg-zinc-50 px-4 py-10 sm:px-6 sm:py-16 dark:bg-zinc-950">
+    <main className="flex-1 px-4 py-10 sm:px-6 sm:py-16">
       <article className="mx-auto flex w-full max-w-2xl flex-col gap-10">
         <header className="flex flex-col gap-4">
-          <Link href="/dashboard" className="link self-start text-sm">
-            ← Back to Matchie
-          </Link>
           <h1 className="font-display text-4xl leading-[0.95] font-medium sm:text-5xl">
             Your <em className="accent-word">privacy</em>
           </h1>

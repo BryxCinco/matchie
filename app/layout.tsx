@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   description: "AI job search agent: scores jobs against your resume and tracks every application.",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: [{ url: "/favicon.ico" }, { url: "/icon.svg", type: "image/svg+xml" }],
+    icon: [{ url: "/favicon.ico", sizes: "48x48" }, { url: "/icon-192.png", type: "image/png", sizes: "192x192" }],
     apple: "/apple-touch-icon.png",
   },
   appleWebApp: { capable: true, title: "Matchie", statusBarStyle: "black-translucent" },
