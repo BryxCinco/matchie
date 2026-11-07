@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { safeNext } from "@/lib/auth/safe-next";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { parseResumeText } from "@/lib/resume-parser";
@@ -52,7 +53,8 @@ export async function saveSeekerProfile(_prev: FormState, formData: FormData): P
     return { error: "Could not save your profile. Please try again." };
   }
 
-  redirect("/dashboard");
+  // Onboarding continues to the dashboard; the profile page stays put.
+  redirect(safeNext(formData.get("return_to")?.toString() ?? null, "/dashboard"));
 }
 
 const ResumeSchema = z.object({

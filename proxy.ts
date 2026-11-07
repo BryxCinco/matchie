@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/types/database.types";
 
 // Routes that need a signed-in user. Matches the path and everything under it.
-const PROTECTED_PATHS = ["/dashboard", "/discover", "/tracker", "/onboarding"];
+const PROTECTED_PATHS = ["/dashboard", "/discover", "/tracker", "/onboarding", "/profile", "/settings"];
 const AUTH_PATHS = ["/login"];
 
 function matches(pathname: string, paths: string[]) {

@@ -2,7 +2,15 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
+import {
+  DragDropContext,
+  Draggable,
+  Droppable,
+  type DraggableStateSnapshot,
+  type DraggingStyle,
+  type DropResult,
+  type NotDraggingStyle,
+} from "@hello-pangea/dnd";
 import { APPLICATION_STATUSES, CLOSED_STATUSES, STATUS_LABELS, type ApplicationStatus } from "@/lib/application-status";
 import { moveApplication } from "./actions";
 
@@ -25,6 +33,8 @@ const columnId = (status: ApplicationStatus) => `column-${status}`;
 export function KanbanBoard({ initialCards }: { initialCards: BoardCard[] }) {
   const [cards, setCards] = useState(initialCards);
   const [error, setError] = useState<string | null>(null);
+  // The card that just landed in a new column plays a short "settle" pulse.
+  const [settledId, setSettledId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   // Optimistic: move the card now, put it back if the server says no.
@@ -34,6 +44,7 @@ export function KanbanBoard({ initialCards }: { initialCards: BoardCard[] }) {
     const from = card.status;
 
     setError(null);
+    setSettledId(cardId);
     setCards((current) =>
       current.map((c) => (c.id === cardId ? { ...c, status: to, lastActivityAt: new Date().toISOString() } : c)),
     );
@@ -87,7 +98,14 @@ export function KanbanBoard({ initialCards }: { initialCards: BoardCard[] }) {
         {/* Bleeds past the page padding so the last column can scroll fully into view. */}
         <div className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:scroll-px-6 sm:px-6 md:snap-none md:gap-4">
           {APPLICATION_STATUSES.map((status) => (
-            <Column key={status} status={status} cards={byStatus.get(status) ?? []} onMove={move} />
+            <Column
+              key={status}
+              status={status}
+              cards={byStatus.get(status) ?? []}
+              onMove={move}
+              settledId={settledId}
+              onSettled={() => setSettledId(null)}
+            />
           ))}
         </div>
       </DragDropContext>
@@ -107,7 +125,7 @@ function StatusJumpBar({ counts }: { counts: Map<ApplicationStatus, BoardCard[]>
               onClick={() =>
                 document.getElementById(columnId(status))?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" })
               }
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-300"
+              className="pressable flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-zinc-200 bg-white px-3.5 text-xs font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
             >
               {STATUS_LABELS[status]}
               <span className="text-zinc-400 dark:text-zinc-500">{counts.get(status)?.length ?? 0}</span>
@@ -123,23 +141,29 @@ function Column({
   status,
   cards,
   onMove,
+  settledId,
+  onSettled,
 }: {
   status: ApplicationStatus;
   cards: BoardCard[];
   onMove: (cardId: string, to: ApplicationStatus) => void;
+  settledId: string | null;
+  onSettled: () => void;
 }) {
   const closed = CLOSED_STATUSES.has(status);
+  const won = status === "offer" || status === "accepted";
   return (
     <section
       id={columnId(status)}
       aria-label={STATUS_LABELS[status]}
-      className={`flex w-[85vw] max-w-80 shrink-0 snap-start flex-col rounded-2xl border border-zinc-200 sm:w-72 dark:border-zinc-800 ${
-        closed ? "bg-zinc-50 dark:bg-zinc-900/40" : "bg-zinc-100 dark:bg-zinc-900"
+      className={`flex w-[85vw] max-w-80 shrink-0 snap-start flex-col rounded-3xl border sm:w-72 ${
+        closed ? "border-zinc-200/70 bg-zinc-100/50 dark:border-zinc-800/60 dark:bg-zinc-900/40" : "border-zinc-200 bg-white/70 dark:border-zinc-800 dark:bg-zinc-900"
       }`}
     >
-      <h2 className="flex items-center justify-between px-4 pt-3 pb-2 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+      <h2 className="flex items-center gap-2 px-4 pt-4 pb-2 font-sans text-sm font-semibold tracking-normal text-zinc-700 dark:text-zinc-200">
+        <span aria-hidden="true" className={`size-2 rounded-full ${won ? "bg-ios-green" : closed ? "bg-zinc-400 dark:bg-zinc-600" : "bg-accent"}`} />
         {STATUS_LABELS[status]}
-        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+        <span className="ml-auto rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium tabular-nums text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
           {cards.length}
         </span>
       </h2>
@@ -148,23 +172,33 @@ function Column({
           <ul
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`flex min-h-32 flex-1 flex-col gap-2 rounded-b-2xl p-2 transition-colors ${
-              snapshot.isDraggingOver ? "bg-zinc-200/70 dark:bg-orange-500/10" : ""
+            className={`m-1.5 mt-0 flex min-h-32 flex-1 flex-col gap-2 rounded-[1.25rem] p-1.5 transition-[background-color,box-shadow] duration-200 ${
+              snapshot.isDraggingOver ? "bg-orange-500/[0.07] ring-2 ring-orange-500/40 ring-inset" : ""
             }`}
           >
             {cards.map((card, index) => (
               <Draggable key={card.id} draggableId={card.id} index={index}>
                 {(dragProvided, dragSnapshot) => (
+                  // The library owns the <li> transform (position); the visual
+                  // lift and tilt go on the inner div so they never fight it.
                   <li
                     ref={dragProvided.innerRef}
                     {...dragProvided.draggableProps}
                     {...dragProvided.dragHandleProps}
-                    className={`rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 ${
-                      dragSnapshot.isDragging ? "rotate-1 shadow-lg ring-2 ring-zinc-950/10 dark:ring-orange-500/60" : ""
-                    } ${closed ? "opacity-70" : ""}`}
+                    style={withSnapDrop(dragProvided.draggableProps.style, dragSnapshot)}
+                    className="rounded-2xl focus-visible:outline-2 focus-visible:outline-orange-500"
                   >
-                    <CardBody card={card} />
-                    <MoveMenu card={card} onMove={onMove} />
+                    <div
+                      onAnimationEnd={card.id === settledId ? onSettled : undefined}
+                      className={`rounded-2xl border bg-white p-3.5 transition-[transform,box-shadow,border-color] duration-300 ease-ios dark:bg-zinc-950 ${
+                        dragSnapshot.isDragging && !dragSnapshot.isDropAnimating
+                          ? "scale-[1.04] rotate-[1.5deg] border-orange-500/60 shadow-[0_20px_40px_-12px_rgb(240_83_43/0.45)]"
+                          : "border-zinc-200 shadow-sm hover:border-orange-500/40 dark:border-zinc-800"
+                      } ${card.id === settledId ? "animate-settle" : ""} ${closed ? "opacity-70" : ""}`}
+                    >
+                      <CardBody card={card} />
+                      <MoveMenu card={card} onMove={onMove} />
+                    </div>
                   </li>
                 )}
               </Draggable>
@@ -177,11 +211,23 @@ function Column({
   );
 }
 
+// On drop, the library animates the card into its slot with a plain ease.
+// Swapping in an overshooting curve makes it "snap" into place, iOS style.
+function withSnapDrop(style: DraggingStyle | NotDraggingStyle | undefined, snapshot: DraggableStateSnapshot) {
+  if (!style || !snapshot.isDropAnimating || !snapshot.dropAnimation) return style;
+  const { moveTo, duration } = snapshot.dropAnimation;
+  return {
+    ...style,
+    transform: `translate(${moveTo.x}px, ${moveTo.y}px)`,
+    transition: `transform ${Math.max(duration, 0.3)}s cubic-bezier(0.34, 1.4, 0.64, 1)`,
+  };
+}
+
 function CardBody({ card }: { card: BoardCard }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="line-clamp-2 text-sm font-medium">{card.title}</p>
+        <p className="line-clamp-2 font-display text-[15px] leading-snug font-medium">{card.title}</p>
         <p className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
           {[card.company ?? "Company not set", card.location].filter(Boolean).join(" · ")}
         </p>
@@ -213,14 +259,15 @@ function MoveMenu({ card, onMove }: { card: BoardCard; onMove: (cardId: string, 
 }
 
 function FitBadge({ score }: { score: number }) {
+  // Same thresholds and colors as the score ring.
   const tone =
-    score >= 70
-      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+    score >= 80
+      ? "bg-ios-green/15 text-green-700 dark:text-green-400"
       : score >= 50
-        ? "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
-        : "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300";
+        ? "bg-orange-500/15 text-orange-700 dark:text-orange-300"
+        : "bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
   return (
-    <span title="Fit score" className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums ${tone}`}>
+    <span title="Fit score" className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${tone}`}>
       {score}
     </span>
   );

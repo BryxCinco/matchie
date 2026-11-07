@@ -1,15 +1,24 @@
 import { Suspense } from "react";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
+import { FadeIn } from "../motion";
 import { KanbanBoard, type BoardCard } from "./KanbanBoard";
 
 export default function TrackerPage() {
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">Tracker</h1>
-        <p className="mt-2 text-zinc-600 dark:text-zinc-400">Drag a card to update its status. Every move is kept in its history.</p>
-      </header>
+      <FadeIn>
+        <header className="flex flex-col gap-3">
+          <h1 className="font-display text-4xl leading-[0.95] font-medium sm:text-5xl lg:text-6xl">
+            Your <em className="accent-word">Tracker</em>
+          </h1>
+          <p className="max-w-xl text-zinc-600 dark:text-zinc-400">
+            <span className="hidden md:inline">Drag a card to update its status.</span>
+            <span className="md:hidden">Swipe between columns; use &ldquo;Move to&rdquo; on a card to change its status.</span> Every move is
+            kept in its history.
+          </p>
+        </header>
+      </FadeIn>
       <Suspense fallback={<BoardSkeleton />}>
         <BoardLoader />
       </Suspense>
@@ -55,7 +64,7 @@ function BoardSkeleton() {
   return (
     <div aria-busy="true" className="flex gap-4 overflow-hidden">
       {Array.from({ length: 4 }, (_, i) => (
-        <div key={i} className="h-96 w-72 shrink-0 animate-pulse rounded-2xl bg-zinc-200/60 dark:bg-zinc-800/60" />
+        <div key={i} className="h-96 w-72 shrink-0 animate-pulse rounded-3xl bg-zinc-200/60 dark:bg-zinc-900" />
       ))}
     </div>
   );

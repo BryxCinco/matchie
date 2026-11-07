@@ -1,0 +1,105 @@
+import { Suspense, type ReactNode } from "react";
+import type { Metadata } from "next";
+import { requireUser } from "@/lib/auth/require-user";
+import { createClient } from "@/lib/supabase/server";
+import { signOut } from "../actions";
+import { Avatar } from "../Avatar";
+import { FadeIn } from "../motion";
+import { PasswordForm, ResetLinkButton } from "./AccountForms";
+import { DeleteAccountButton } from "./DangerZone";
+import { ThemeSetting } from "./ThemeSetting";
+
+export const metadata: Metadata = { title: "Settings" };
+
+export default function SettingsPage() {
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+      <FadeIn>
+        <h1 className="font-display text-4xl leading-[0.95] font-medium sm:text-5xl lg:text-6xl">
+          <em className="accent-word">Settings</em>
+        </h1>
+      </FadeIn>
+
+      <FadeIn delay={0.05}>
+        <Group title="Account">
+          <Suspense fallback={<div aria-busy="true" className="h-14 animate-pulse rounded-2xl bg-zinc-200/60 dark:bg-zinc-800" />}>
+            <AccountSummary />
+          </Suspense>
+          <Divider />
+          <Row title="Password" description="Change it here, or get a reset link by email if you are not sure of the current one.">
+            <div className="flex flex-col gap-4">
+              <PasswordForm />
+              <ResetLinkButton />
+            </div>
+          </Row>
+        </Group>
+      </FadeIn>
+
+      <FadeIn delay={0.1}>
+        <Group title="Appearance">
+          <Row title="Theme" description="Saved on this device.">
+            <ThemeSetting />
+          </Row>
+        </Group>
+      </FadeIn>
+
+      <FadeIn delay={0.15}>
+        <Group title="Danger zone" danger>
+          <Row title="Delete account" description="Permanently removes your profile, resume, matches and applications. This cannot be undone.">
+            <DeleteAccountButton />
+          </Row>
+        </Group>
+      </FadeIn>
+    </div>
+  );
+}
+
+async function AccountSummary() {
+  const user = await requireUser("/settings");
+  const supabase = await createClient();
+  const { data: profile } = await supabase.from("profiles").select("avatar_url").eq("user_id", user.id).maybeSingle();
+  const email = user.email ?? "";
+
+  return (
+    <div className="flex flex-wrap items-center gap-4">
+      <Avatar url={profile?.avatar_url ?? null} name={email} className="size-12 text-lg" />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400">Email</p>
+        <p className="truncate font-medium">{email}</p>
+      </div>
+      <form action={signOut}>
+        <button type="submit" className="btn-secondary min-h-11 px-5">
+          Log out
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// iOS Settings-style grouped section.
+function Group({ title, danger = false, children }: { title: string; danger?: boolean; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className={`px-1 text-xs font-semibold tracking-wider uppercase ${danger ? "text-red-600 dark:text-red-400" : "text-zinc-500 dark:text-zinc-400"}`}>
+        {title}
+      </h2>
+      <div className={`card flex flex-col gap-5 p-5 sm:p-6 ${danger ? "border-red-500/30 dark:border-red-500/30" : ""}`}>{children}</div>
+    </section>
+  );
+}
+
+function Row({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <h3 className="font-medium">{title}</h3>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{description}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Divider() {
+  return <hr className="border-zinc-200 dark:border-zinc-800" />;
+}

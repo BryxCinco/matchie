@@ -22,11 +22,12 @@ const WORK_SETUPS = [
 const inputClass = "field mt-2 text-sm";
 const labelClass = "text-sm font-medium text-zinc-800 dark:text-zinc-200";
 
-export function ProfileForm({ initial }: { initial: ProfileFormValues }) {
+export function ProfileForm({ initial, returnTo = "/dashboard" }: { initial: ProfileFormValues; returnTo?: string }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(saveSeekerProfile, { error: null });
 
   return (
     <form action={formAction} className="flex flex-col gap-8">
+      <input type="hidden" name="return_to" value={returnTo} />
       <Section title="What you're looking for">
         <TagInput
           name="target_roles"

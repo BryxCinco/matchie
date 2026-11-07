@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import { requireUser } from "@/lib/auth/require-user";
+import { createClient } from "@/lib/supabase/server";
 import { signOut } from "./actions";
+import { Avatar } from "./Avatar";
 import { Navbar } from "./Navbar";
 
 // The navbar is a static shell. With cacheComponents, reading the session at
@@ -11,6 +13,11 @@ export default function DashboardLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="flex flex-1 flex-col">
       <Navbar
+        avatar={
+          <Suspense fallback={<span className="block size-full rounded-full bg-zinc-200 dark:bg-zinc-800" />}>
+            <NavAvatar />
+          </Suspense>
+        }
         userMenu={
           <Suspense fallback={<div className="h-8 w-20 animate-pulse rounded-full bg-zinc-100 dark:bg-zinc-900" aria-busy="true" />}>
             <UserMenu />
@@ -39,4 +46,12 @@ async function UserMenu() {
       </form>
     </>
   );
+}
+
+// Fills its container; the Navbar decides the size.
+async function NavAvatar() {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const { data } = await supabase.from("profiles").select("avatar_url").eq("user_id", user.id).maybeSingle();
+  return <Avatar url={data?.avatar_url ?? null} name={user.email ?? "?"} className="size-full text-[11px]" />;
 }

@@ -16,7 +16,7 @@ AI job search agent: paste a JD, get a match score, track applications on a Kanb
 - `lib/`: domain logic (scrubber, LLM router, scoring, email classifier, resume parser).
 - `lib/supabase/`: `client.ts` (browser), `server.ts` (RSC and actions), `admin.ts` (service role, **workers only**).
 - `workers/`: GitHub Actions jobs. `email-poller.ts` (every 2 hours); `ats-poller.ts` → `score-matches.ts` → `digest.ts` (daily, in that order).
-- `supabase/migrations/`: numbered SQL files, `001` through `007`.
+- `supabase/migrations/`: numbered SQL files, `001` through `008`.
 - `.github/workflows/`: `ci.yml`, `keepalive.yml`, `email-poller.yml`, `discovery.yml`.
 
 ## Discovery pipeline (SPEC "The matching pipeline")
@@ -79,7 +79,8 @@ Local is Node 26; CI, Vercel and the workers run **Node 22**. Code that works lo
 - The theme **redefines Tailwind's `zinc` and `orange` scales** in `app/globals.css` (violet ink to warm cream; warm orange). Keep writing `zinc-*` / `orange-*` classes; do not add raw hex colors in components.
 - Fonts: `font-display` (Outfit) for headings, Geist for body, and `accent-word` (Instrument Serif italic, gradient) for one accent word in a big heading, e.g. `Disc<em className="accent-word">o</em>ver`.
 - Use the utilities: `btn-primary`, `btn-secondary`, `link`, `field`, `card`, `glass`, `pressable`, `eyebrow`, `bg-accent`, `text-accent`, `pt-safe`/`pb-safe`.
-- Phones (< md): navigation is the bottom tab bar in `Navbar.tsx`; page content is padded to clear it. Touch targets at least 44px (`min-h-11`). Inputs stay 16px on phones so iOS does not zoom.
+- Animation: `FadeIn` from `app/(dashboard)/motion.tsx` (the `motion` package) for page and section entrances; CSS (`pressable`, `btn-*` hover, `animate-rise`, `animate-settle`) for everything small. Never put motion transforms on tracker cards: @hello-pangea/dnd owns their transform.
+- Phones (< md): navigation is the bottom tab bar in `Navbar.tsx` (Log out is on /settings there); page content is padded to clear it. Touch targets at least 44px (`min-h-11`). Inputs stay 16px on phones so iOS does not zoom.
 
 ### 5. Migrations
 

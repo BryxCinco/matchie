@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "./ThemeToggle";
@@ -9,20 +9,21 @@ const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
   { href: "/discover", label: "Discover", icon: CompassIcon },
   { href: "/tracker", label: "Tracker", icon: BoardIcon },
-  { href: "/onboarding", label: "Profile", icon: PersonIcon },
+  { href: "/profile", label: "Profile", icon: null },
+  { href: "/settings", label: "Settings", icon: GearIcon },
 ] as const;
 
 /**
  * Desktop and tablet (md+): a frosted top bar with the links, which shrinks
- * once the page scrolls. Phones: the top bar keeps only the logo, theme and
- * account button, and the links move to an iOS-style tab bar at the bottom,
- * within thumb reach.
+ * once the page scrolls. Phones: the top bar keeps only the logo and theme
+ * toggle, and the links move to an iOS-style tab bar at the bottom, within
+ * thumb reach. Log out lives on the Settings page there.
  *
- * `userMenu` is a Server Component (email + log out) streamed in behind
- * Suspense by the layout. It renders in the bar on desktop and in the
- * account popover on phones.
+ * `userMenu` (email + log out) and `avatar` (the profile picture, sized by
+ * its container) are Server Components streamed in behind Suspense by the
+ * layout.
  */
-export function Navbar({ userMenu }: { userMenu: ReactNode }) {
+export function Navbar({ userMenu, avatar }: { userMenu: ReactNode; avatar: ReactNode }) {
   const pathname = usePathname();
   const scrolled = useScrolled();
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
@@ -32,7 +33,7 @@ export function Navbar({ userMenu }: { userMenu: ReactNode }) {
       <header className={`glass pt-safe sticky top-0 z-30 border-b transition-shadow duration-300 ${scrolled ? "shadow-[0_8px_30px_-12px_rgb(0_0_0/0.35)]" : ""}`}>
         <nav
           aria-label="Main"
-          className={`mx-auto flex max-w-6xl items-center gap-6 px-4 transition-[height] duration-300 ease-ios sm:px-6 ${scrolled ? "h-12" : "h-14 md:h-16"}`}
+          className={`mx-auto flex max-w-6xl items-center gap-4 px-4 lg:gap-6 transition-[height] duration-300 ease-ios sm:px-6 ${scrolled ? "h-12" : "h-14 md:h-16"}`}
         >
           <Link href="/dashboard" className="pressable flex items-center gap-2 rounded-lg">
             <Logo className={`transition-[width,height] duration-300 ease-ios ${scrolled ? "size-6" : "size-7"}`} />
@@ -47,7 +48,7 @@ export function Navbar({ userMenu }: { userMenu: ReactNode }) {
                   <Link
                     href={href}
                     aria-current={active ? "page" : undefined}
-                    className={`pressable block rounded-full px-4 py-1.5 text-sm font-medium ${
+                    className={`pressable block rounded-full px-3 py-1.5 text-sm font-medium lg:px-4 ${
                       active
                         ? "bg-white text-zinc-950 shadow-sm dark:bg-zinc-800 dark:text-orange-400"
                         : "text-zinc-600 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
@@ -62,15 +63,23 @@ export function Navbar({ userMenu }: { userMenu: ReactNode }) {
 
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
-            {/* Email shows from lg up; between md and lg only the button fits. */}
-            <div className="hidden items-center gap-3 md:flex [&>span]:hidden lg:[&>span]:inline">{userMenu}</div>
-            <AccountMenu>{userMenu}</AccountMenu>
+            {/* Email shows from xl up; below that only the button fits. */}
+            <div className="hidden items-center gap-3 md:flex [&>span]:hidden xl:[&>span]:inline">{userMenu}</div>
+            <Link
+              href="/profile"
+              aria-label="Your profile"
+              className={`pressable hidden size-9 overflow-hidden rounded-full ring-2 ring-offset-2 ring-offset-white md:block dark:ring-offset-zinc-950 ${
+                isActive("/profile") ? "ring-orange-500" : "ring-transparent hover:ring-zinc-300 dark:hover:ring-zinc-700"
+              }`}
+            >
+              {avatar}
+            </Link>
           </div>
         </nav>
       </header>
 
       <nav aria-label="Tabs" className="glass pb-safe fixed inset-x-0 bottom-0 z-30 border-t md:hidden">
-        <ul className="mx-auto grid max-w-md grid-cols-4">
+        <ul className="mx-auto grid max-w-lg grid-cols-5">
           {NAV_LINKS.map(({ href, label, icon: Icon }) => {
             const active = isActive(href);
             return (
@@ -82,7 +91,12 @@ export function Navbar({ userMenu }: { userMenu: ReactNode }) {
                     active ? "text-orange-600 dark:text-orange-400" : "text-zinc-500 dark:text-zinc-400"
                   }`}
                 >
-                  <Icon active={active} />
+                  {Icon ? (
+                    <Icon active={active} />
+                  ) : (
+                    // Profile tab: the user's photo, ringed when active.
+                    <span className={`block size-6 overflow-hidden rounded-full ring-2 ${active ? "ring-orange-500" : "ring-transparent"}`}>{avatar}</span>
+                  )}
                   {label}
                 </Link>
               </li>
@@ -115,50 +129,6 @@ function useScrolled(threshold = 8) {
     };
   }, [threshold]);
   return scrolled;
-}
-
-// Phones only: email + log out in a small popover under the account button.
-// The panel is hidden, not unmounted, so the streamed user menu stays put.
-function AccountMenu({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    const onPointer = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointer);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointer);
-    };
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative md:hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-controls="account-menu"
-        aria-label="Account"
-        className="pressable inline-flex size-9 items-center justify-center rounded-full text-zinc-600 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-orange-500 dark:text-zinc-300 dark:hover:bg-zinc-900"
-      >
-        <PersonIcon active={open} />
-      </button>
-      <div
-        id="account-menu"
-        className={`card absolute right-0 mt-2 w-[min(18rem,calc(100vw-2rem))] origin-top-right flex-col gap-3 p-4 [&>span]:truncate [&>span]:text-sm ${
-          open ? "flex" : "hidden"
-        }`}
-      >
-        {children}
-      </div>
-    </div>
-  );
 }
 
 function Logo({ className }: { className: string }) {
@@ -208,11 +178,15 @@ function BoardIcon({ active }: IconProps) {
   );
 }
 
-function PersonIcon({ active }: IconProps) {
+function GearIcon({ active }: IconProps) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 20.5c1.2-3.6 4.3-5.5 8-5.5s6.8 1.9 8 5.5" strokeLinecap="round" />
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path
+        d="M10.3 3.5h3.4l.5 2.3 1.6.9 2.2-.8 1.7 2.9-1.8 1.6v1.8l1.8 1.6-1.7 2.9-2.2-.8-1.6.9-.5 2.3h-3.4l-.5-2.3-1.6-.9-2.2.8-1.7-2.9 1.8-1.6v-1.8L4.3 8.8 6 5.9l2.2.8 1.6-.9z"
+        fill={active ? "currentColor" : "none"}
+        fillOpacity={active ? 0.18 : 0}
+      />
+      <circle cx="12" cy="12" r="2.8" fill={active ? "currentColor" : "none"} />
     </svg>
   );
 }
