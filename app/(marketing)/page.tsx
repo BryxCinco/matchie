@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ScoreRing } from "../(dashboard)/ScoreRing";
+import { HeroStage } from "./HeroStage";
 import { Backdrop, CheckIcon, Container, LockIcon, Logo, PrimaryCta, SectionTitle, Svg } from "./site";
 
 // The home page: what Matchie is, for visitors and signed-in users alike
@@ -34,22 +35,18 @@ export default function LandingPage() {
 
 function Hero() {
   return (
-    <Container className="grid items-center gap-14 pt-12 sm:pt-20 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
+    <Container className="grid items-center gap-10 pt-14 sm:gap-14 sm:pt-20 lg:grid-cols-[0.9fr_1.2fr] lg:gap-6">
       {/* CSS entrance, not motion: the hero must be visible before any JS loads. */}
-      <div className="flex flex-col items-start gap-6 motion-safe:animate-rise">
-        <span className="glass inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">
-          <span className="relative flex size-2">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-orange-500 opacity-60" />
-            <span className="relative inline-flex size-2 rounded-full bg-orange-500" />
-          </span>
-          AI job search agent for the Philippines
-        </span>
-        <h1 className="font-display text-5xl leading-[0.95] font-medium tracking-tight sm:text-6xl lg:text-7xl">
+      <div className="relative z-10 flex flex-col items-center gap-6 text-center motion-safe:animate-rise lg:items-start lg:text-left">
+        <p className="eyebrow">
+          <span>Built for the Philippine job market</span>
+        </p>
+        <h1 className="font-display text-5xl leading-[0.95] font-medium tracking-tight sm:text-6xl xl:text-7xl">
           Your job hunt,
           <br />
           on <em className="accent-word">autopilot</em>
         </h1>
-        <p className="max-w-xl text-lg text-zinc-600 sm:text-xl dark:text-zinc-400">
+        <p className="max-w-2xl text-lg text-zinc-600 sm:text-xl dark:text-zinc-400">
           Matchie finds Philippine and remote tech jobs every morning, scores each one against your resume, and moves your tracker when recruiters email you.
         </p>
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
@@ -58,68 +55,16 @@ function Hero() {
             See how it works
           </a>
         </div>
-        <p className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-          <LockIcon className="size-4" />
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <LockIcon className="mr-1.5 inline size-4 align-[-0.2em]" />
           Your resume is read on your device. It is never uploaded.
         </p>
       </div>
 
       <div className="motion-safe:animate-rise motion-safe:[animation-delay:150ms]">
-        <HeroPreview />
+        <HeroStage />
       </div>
     </Container>
-  );
-}
-
-/** A match card and two notifications, drawn in HTML: what the app does, at a glance. */
-function HeroPreview() {
-  return (
-    <div className="relative mx-auto w-full max-w-md px-2 py-10 sm:px-6">
-      <div aria-hidden="true" className="absolute inset-8 rounded-[2.5rem] bg-orange-500/30 blur-3xl" />
-
-      <div className="glass relative rounded-[2rem] border p-5 shadow-[0_30px_80px_-30px_rgb(240_83_43/0.55)] sm:p-6">
-        <div className="flex items-start gap-4">
-          <ScoreRing score={92} loading={false} />
-          <div className="min-w-0">
-            <p className="font-display text-lg leading-tight font-medium">Frontend Developer</p>
-            <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">Acme Corp · Makati · Hybrid</p>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {["React", "TypeScript", "Tailwind"].map((skill) => (
-            <span key={skill} className="rounded-full bg-green-500/12 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-400">
-              ✓ {skill}
-            </span>
-          ))}
-          <span className="rounded-full bg-zinc-500/12 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">+ GraphQL</span>
-        </div>
-        <div className="mt-4 rounded-2xl bg-zinc-100/80 p-3.5 dark:bg-zinc-800/60">
-          <p className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">Why this matched</p>
-          <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">Strong React and TypeScript fit at the right level. GraphQL is the one gap, and it is quick to learn.</p>
-        </div>
-        <div className="bg-accent mt-4 flex h-11 items-center justify-center rounded-full text-sm font-semibold text-zinc-950">Save to tracker</div>
-      </div>
-
-      <Toast className="-top-1 -right-1 sm:-right-6 motion-safe:animate-float" icon={<MailIcon />} title="Interview invite" detail="Globex · moved to Interview" />
-      <Toast
-        className="-bottom-1 -left-1 sm:-left-8 motion-safe:animate-float motion-safe:[animation-delay:-3.5s]"
-        icon={<SunIcon />}
-        title="Your 6 AM digest"
-        detail="10 new matches for you"
-      />
-    </div>
-  );
-}
-
-function Toast({ className, icon, title, detail }: { className: string; icon: ReactNode; title: string; detail: string }) {
-  return (
-    <div className={`glass absolute z-10 flex items-center gap-3 rounded-2xl border py-2.5 pr-4 pl-2.5 shadow-xl shadow-black/10 dark:shadow-black/40 ${className}`}>
-      <span className="bg-accent flex size-9 shrink-0 items-center justify-center rounded-xl text-zinc-950">{icon}</span>
-      <span className="flex flex-col">
-        <span className="text-sm font-semibold">{title}</span>
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">{detail}</span>
-      </span>
-    </div>
   );
 }
 
@@ -199,7 +144,7 @@ function Features() {
 function Tile({ icon, title, body, children }: { icon: ReactNode; title: string; body: string; children?: ReactNode }) {
   return (
     <article className="card group flex h-full flex-col p-6 transition-[border-color,box-shadow] duration-300 hover:border-orange-500/40 sm:p-7 dark:hover:shadow-[0_20px_60px_-30px_rgb(240_83_43/0.5)]">
-      <span className="bg-accent flex size-11 items-center justify-center rounded-2xl text-zinc-950 shadow-[0_8px_24px_-8px_rgb(240_83_43/0.6)] transition-transform duration-300 ease-ios group-hover:scale-110 group-hover:-rotate-6">
+      <span className="bg-accent flex size-11 items-center justify-center rounded-2xl text-zinc-950 shadow-[0_8px_24px_-8px_rgb(240_83_43/0.6)]">
         {icon}
       </span>
       <h3 className="mt-5 font-display text-xl font-medium">{title}</h3>
@@ -308,10 +253,6 @@ function FinalCta() {
 }
 
 // --- Icons (24px, 1.8 stroke, like the tab bar) ------------------------------------
-
-
-
-
 
 function MailIcon() {
   return (
