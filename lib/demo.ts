@@ -7,7 +7,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./types/database.types.ts";
 
-export const DEMO_EMAIL = "demo@matchie.dev";
+// A Gmail inbox the owner controls, so a password-reset email requested for
+// the demo (anyone can request one) never reaches a stranger.
+export const DEMO_EMAIL = "matchie.demo.ph@gmail.com";
 export const DEMO_PASSWORD = "matchie-demo-2026";
 
 export const DEMO_DISABLED = "Disabled in Demo Mode";

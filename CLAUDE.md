@@ -16,7 +16,7 @@ AI job search agent: paste a JD, get a match score, track applications on a Kanb
 - `lib/`: domain logic (scrubber, LLM router, scoring, email classifier, resume parser).
 - `lib/supabase/`: `client.ts` (browser), `server.ts` (RSC and actions), `admin.ts` (service role, **workers only**).
 - `workers/`: GitHub Actions jobs. `email-poller.ts` (every 2 hours); `ats-poller.ts` → `ghosting-checker.ts` → `score-matches.ts` → `digest.ts` (daily, in that order); `seed-demo.ts` (nightly demo reset).
-- `supabase/migrations/`: numbered SQL files, `001` through `014`.
+- `supabase/migrations/`: numbered SQL files, `001` through `015`.
 - `.github/workflows/`: `ci.yml`, `keepalive.yml`, `email-poller.yml`, `discovery.yml`, `demo-reset.yml`.
 
 ## Discovery pipeline (SPEC "The matching pipeline")
