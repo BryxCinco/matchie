@@ -2,6 +2,7 @@
 
 import { requireUser } from "@/lib/auth/require-user";
 import { MAX_BATCH_JOBS, scoreJobsBatch } from "@/lib/batch-scoring";
+import { DEMO_DISABLED, isDemoAccount } from "@/lib/demo";
 import { loadCandidate } from "@/lib/load-candidate";
 import { createClient } from "@/lib/supabase/server";
 
@@ -28,6 +29,8 @@ const STRONG_FIT = 80;
 export async function analyzeResumeForJobs(): Promise<AnalyzeResult> {
   const user = await requireUser("/discover");
   const supabase = await createClient();
+  // The demo login is public; it must not spend the LLM budget.
+  if (await isDemoAccount(supabase, user.id)) return { ok: false, error: `${DEMO_DISABLED}.` };
 
   const loaded = await loadCandidate(supabase, user.id);
   if (!loaded.ok) return { ok: false, error: loaded.error };

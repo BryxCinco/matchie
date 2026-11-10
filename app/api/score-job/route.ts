@@ -5,6 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { scoreJob, type MatchResult } from "@/lib/match-scoring";
 import { loadCandidate } from "@/lib/load-candidate";
 import { MAX_JD_CHARS, MIN_JD_CHARS } from "@/lib/job-description-limits";
+import { DEMO_DISABLED, isDemoAccount } from "@/lib/demo";
+
+// Gemini, then the Groq fallback, each with a 30s timeout. The default
+// function limit would cut a fallback off halfway.
+export const maxDuration = 60;
 
 const BodySchema = z.object({
   job_description: z
@@ -30,6 +35,8 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return error(401, "You need to sign in.");
+  // The demo login is public; it must not spend the LLM budget.
+  if (await isDemoAccount(supabase, user.id)) return error(403, `${DEMO_DISABLED}.`);
 
   const body = BodySchema.safeParse(await request.json().catch(() => null));
   if (!body.success) return error(400, body.error.issues[0]?.message ?? "Invalid request.");

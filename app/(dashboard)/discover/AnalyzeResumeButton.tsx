@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { DemoLocked, DemoLockNote } from "../DemoLock";
 import { analyzeResumeForJobs, type AnalyzeResult } from "./actions";
 
-export function AnalyzeResumeButton() {
+export function AnalyzeResumeButton({ demo = false }: { demo?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<AnalyzeResult | null>(null);
@@ -26,7 +27,9 @@ export function AnalyzeResumeButton() {
           Find my <em className="accent-word">best</em> fits
         </h2>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
-          {pending ? (
+          {demo ? (
+            "The demo never calls the AI. The scored jobs below were prepared ahead of time."
+          ) : pending ? (
             "Reading your resume against your top jobs…"
           ) : result?.ok ? (
             result.scored === 0 ? (
@@ -52,16 +55,19 @@ export function AnalyzeResumeButton() {
           </p>
         )}
       </div>
-      <button type="button" onClick={analyze} disabled={pending} className="btn-primary min-h-11 shrink-0 px-5">
-        {pending ? (
-          <>
-            <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            Analyzing…
-          </>
-        ) : (
-          "Analyze my resume to find matches"
-        )}
-      </button>
+      <DemoLocked locked={demo} className="flex shrink-0 flex-col items-start gap-1.5 sm:items-end">
+        <button type="button" onClick={analyze} disabled={pending || demo} className="btn-primary min-h-11 shrink-0 px-5">
+          {pending ? (
+            <>
+              <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              Analyzing…
+            </>
+          ) : (
+            "Analyze my resume to find matches"
+          )}
+        </button>
+        {demo && <DemoLockNote />}
+      </DemoLocked>
     </div>
   );
 }

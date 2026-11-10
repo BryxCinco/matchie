@@ -10,7 +10,7 @@ import { PasteJdForm } from "./PasteJdForm";
  * panel from sm up. The dialog stays mounted, so a score is still there if
  * the sheet is closed and reopened.
  */
-export function QuickActions() {
+export function QuickActions({ demo = false }: { demo?: boolean }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
 
@@ -78,7 +78,7 @@ export function QuickActions() {
             </button>
           </div>
           <div className="p-4 sm:p-6">
-            <PasteJdForm />
+            <PasteJdForm demo={demo} />
           </div>
         </div>
       </dialog>

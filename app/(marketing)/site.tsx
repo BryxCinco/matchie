@@ -1,11 +1,12 @@
 import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { DemoButton } from "../login/DemoButton";
 import { SiteLinks, MobileMenu } from "./SiteLinks";
 
 // Shared pieces of the public site: Home (/), About and Privacy.
-
-export const SIGN_UP = "/login?mode=signup";
+// Matchie is single-user, so the calls to action open the public demo
+// account (lib/demo.ts) instead of a sign-up form.
 
 export function Container({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`mx-auto w-full max-w-6xl px-4 sm:px-6 ${className}`}>{children}</div>;
@@ -59,20 +60,18 @@ function SignedOutActions() {
       <Link href="/login" className="btn-secondary min-h-10 px-4">
         Sign in
       </Link>
-      <Link href={SIGN_UP} className="btn-primary hidden min-h-10 px-4 sm:inline-flex">
-        Get started
-      </Link>
+      <DemoButton className="btn-primary hidden min-h-10 px-4 sm:inline-flex">Live demo</DemoButton>
     </>
   );
 }
 
-/** The main call to action: sign up, or back to work for a signed-in user. */
+/** The main call to action: the live demo, or back to work for a signed-in user. */
 export function PrimaryCta({ className = "" }: { className?: string }) {
   const signedOut = (
-    <Link href={SIGN_UP} className={`btn-primary min-h-12 px-7 text-base ${className}`}>
-      Get started free
+    <DemoButton className={`btn-primary min-h-12 px-7 text-base ${className}`}>
+      View live demo
       <ArrowIcon />
-    </Link>
+    </DemoButton>
   );
   return (
     <Suspense fallback={signedOut}>

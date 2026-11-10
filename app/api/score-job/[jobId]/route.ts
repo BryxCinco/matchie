@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { scoreJob, type MatchResult, type ScoreExistingJobResponse } from "@/lib/match-scoring";
 import { loadCandidate } from "@/lib/load-candidate";
+import { DEMO_DISABLED, isDemoAccount } from "@/lib/demo";
 
 // Gemini, then the Groq fallback, each with a 30s timeout. The default
 // function limit would cut a fallback off halfway.
@@ -19,6 +20,8 @@ export async function POST(_request: NextRequest, { params }: RouteContext<"/api
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return error(401, "You need to sign in.");
+  // The demo login is public; it must not spend the LLM budget.
+  if (await isDemoAccount(supabase, user.id)) return error(403, `${DEMO_DISABLED}.`);
 
   const [{ data: job, error: jobError }, loaded] = await Promise.all([
     supabase

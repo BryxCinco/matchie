@@ -5,8 +5,9 @@ import Link from "next/link";
 import type { ScoreJobResponse } from "@/app/api/score-job/route";
 import { MAX_JD_CHARS, MIN_JD_CHARS } from "@/lib/job-description-limits";
 import { saveJobToTracker, type SaveToTrackerResult } from "../tracker/actions";
+import { DemoLocked, DemoLockNote } from "../DemoLock";
 
-export function PasteJdForm() {
+export function PasteJdForm({ demo = false }: { demo?: boolean }) {
   const [jobDescription, setJobDescription] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,13 +65,16 @@ export function PasteJdForm() {
             ? `${MIN_JD_CHARS - length} more character${MIN_JD_CHARS - length === 1 ? "" : "s"} needed.`
             : "Your name and contact details are removed before anything is sent to the AI."}
         </p>
-        <button
-          type="submit"
-          disabled={pending || tooShort}
-          className="btn-primary w-full px-4 py-2.5 sm:w-auto sm:self-end"
-        >
-          {pending ? "Scoring…" : "Score job"}
-        </button>
+        <DemoLocked locked={demo} className="flex flex-col gap-1.5 sm:items-end">
+          <button
+            type="submit"
+            disabled={pending || tooShort || demo}
+            className="btn-primary w-full px-4 py-2.5 sm:w-auto sm:self-end"
+          >
+            {pending ? "Scoring…" : "Score job"}
+          </button>
+          {demo && <DemoLockNote />}
+        </DemoLocked>
       </form>
 
       {pending && (

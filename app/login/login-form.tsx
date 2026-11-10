@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { safeNext } from "@/lib/auth/safe-next";
+import { DemoButton } from "./DemoButton";
 
 type Mode = "login" | "signup";
 
@@ -14,7 +15,7 @@ export function LoginForm() {
   const callbackError = searchParams.get("error");
 
   const router = useRouter();
-  // "Get started" on the landing page links here with ?mode=signup.
+  // ?mode=signup opens the sign-up form.
   const [mode, setMode] = useState<Mode>(searchParams.get("mode") === "signup" ? "signup" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -127,6 +128,16 @@ export function LoginForm() {
           {pending ? "Please wait…" : isLogin ? "Sign in" : "Sign up"}
         </button>
       </form>
+
+      <div className="mt-6 flex flex-col gap-3">
+        <div className="flex items-center gap-3 text-xs text-zinc-500 uppercase dark:text-zinc-400">
+          <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+          or
+          <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+        </div>
+        <DemoButton className="btn-secondary w-full px-4 py-2.5">Try demo account</DemoButton>
+        <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">Sample data, no sign-up. AI scoring is off in the demo.</p>
+      </div>
 
       <p className="mt-6 text-center text-sm text-zinc-600 dark:text-zinc-400">
         {isLogin ? "No account yet?" : "Already have an account?"}{" "}

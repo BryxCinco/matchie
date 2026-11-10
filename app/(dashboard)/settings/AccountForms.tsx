@@ -1,41 +1,50 @@
 "use client";
 
 import { useActionState } from "react";
+import { DemoLocked } from "../DemoLock";
 import { changePassword, sendPasswordReset, type SettingsState } from "./actions";
 
 const INITIAL: SettingsState = { error: null, message: null };
 
-export function PasswordForm() {
+// demo: the shared demo login. A <fieldset disabled> turns off every field
+// and button inside it.
+export function PasswordForm({ demo = false }: { demo?: boolean }) {
   const [state, action, pending] = useActionState(changePassword, INITIAL);
   return (
-    <form action={action} className="flex flex-col gap-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5 text-sm font-medium">
-          New password
-          <input name="password" type="password" autoComplete="new-password" required minLength={8} className="field" />
-        </label>
-        <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Confirm
-          <input name="confirm" type="password" autoComplete="new-password" required minLength={8} className="field" />
-        </label>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={pending} className="btn-primary min-h-11 px-5">
-          {pending ? "Updating…" : "Update password"}
-        </button>
-        <Status state={state} />
-      </div>
-    </form>
+    <DemoLocked locked={demo} className="block [&_input]:pointer-events-none">
+      <form action={action}>
+        <fieldset disabled={demo} className="flex flex-col gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              New password
+              <input name="password" type="password" autoComplete="new-password" required minLength={8} className="field" />
+            </label>
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              Confirm
+              <input name="confirm" type="password" autoComplete="new-password" required minLength={8} className="field" />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="submit" disabled={pending} className="btn-primary min-h-11 px-5">
+              {pending ? "Updating…" : "Update password"}
+            </button>
+            <Status state={state} />
+          </div>
+        </fieldset>
+      </form>
+    </DemoLocked>
   );
 }
 
-export function ResetLinkButton() {
+export function ResetLinkButton({ demo = false }: { demo?: boolean }) {
   const [state, action, pending] = useActionState(sendPasswordReset, INITIAL);
   return (
     <form action={action} className="flex flex-wrap items-center gap-3">
-      <button type="submit" disabled={pending} className="btn-secondary min-h-11 px-5">
-        {pending ? "Sending…" : "Email me a reset link"}
-      </button>
+      <DemoLocked locked={demo}>
+        <button type="submit" disabled={pending || demo} className="btn-secondary min-h-11 px-5">
+          {pending ? "Sending…" : "Email me a reset link"}
+        </button>
+      </DemoLocked>
       <Status state={state} />
     </form>
   );

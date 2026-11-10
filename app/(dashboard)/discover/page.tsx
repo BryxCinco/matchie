@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { isDemoUser } from "@/lib/auth/is-demo-user";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import { AnalyzeResumeButton } from "./AnalyzeResumeButton";
@@ -25,7 +26,9 @@ export default function DiscoverPage() {
           Jobs from the boards Matchie watches, filtered by your profile and ranked by fit.
         </p>
       </header>
-      <AnalyzeResumeButton />
+      <Suspense fallback={<AnalyzeResumeButton />}>
+        <AnalyzeSection />
+      </Suspense>
       <Suspense fallback={<DiscoverSkeleton />}>
         <DiscoverLoader />
       </Suspense>
@@ -33,11 +36,16 @@ export default function DiscoverPage() {
   );
 }
 
+async function AnalyzeSection() {
+  await requireUser("/discover");
+  return <AnalyzeResumeButton demo={await isDemoUser()} />;
+}
+
 async function DiscoverLoader() {
   const user = await requireUser("/discover");
   const supabase = await createClient();
 
-  const [matchesRes, shortlistRes, savedRes, latestRes] = await Promise.all([
+  const [matchesRes, shortlistRes, savedRes, latestRes, demo] = await Promise.all([
     supabase
       .from("matches")
       .select(`fit_score, reasoning, matched_skills, missing_skills, red_flags, job:jobs(${JOB_COLUMNS})`)
@@ -47,6 +55,7 @@ async function DiscoverLoader() {
     supabase.rpc("shortlist_my_jobs", { p_limit: 30 }),
     supabase.from("applications").select("job_id").eq("user_id", user.id),
     supabase.from("job_sources").select("seen_at").order("seen_at", { ascending: false }).limit(1).maybeSingle(),
+    isDemoUser(),
   ]);
 
   if (matchesRes.error || savedRes.error) {
@@ -83,8 +92,10 @@ async function DiscoverLoader() {
   });
 
   const scored = matchesRes.data
-    // Pasted JDs live on the dashboard; saved jobs live on the tracker.
-    .filter((m) => m.job && m.job.source !== "manual" && !saved.has(m.job.id))
+    // Pasted JDs live on the dashboard; saved jobs live on the tracker. The
+    // demo's seeded jobs are "manual" too (to keep them out of the shared
+    // pipeline), and they are what its Discover page is for.
+    .filter((m) => m.job && (demo || m.job.source !== "manual") && !saved.has(m.job.id))
     .map((m) =>
       toItem(m.job!, {
         fitScore: m.fit_score,
@@ -128,6 +139,7 @@ async function DiscoverLoader() {
       <DiscoverList
         key={dataKey(items)}
         initialItems={items}
+        demo={demo}
         shortlistFailed={!!shortlistRes.error || !!unscoredError}
       />
     </>

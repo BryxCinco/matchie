@@ -37,13 +37,17 @@ async function main() {
   stats.ghosted = ghosted.length;
   for (const row of ghosted) console.log(`[ghosting] application ${row.application_id}: ghosted`);
 
-  const { data: pending, error: pendingError } = await supabase
+  // mark_ghosted_applications() skips demo accounts, but a demo visitor can
+  // still drag a card to Ghosted; drafting it would spend the LLM budget.
+  const { data: demoProfiles, error: demoError } = await supabase.from("profiles").select("user_id").eq("is_demo", true);
+  if (demoError) throw new Error(`Could not load demo profiles (${demoError.code})`);
+  let pendingQuery = supabase
     .from("applications")
     .select("id, user_id, applied_at, job:jobs(title, company:companies(name))")
     .eq("status", "ghosted")
-    .is("follow_up_draft", null)
-    .order("last_activity_at", { ascending: false })
-    .limit(MAX_DRAFTS_PER_RUN);
+    .is("follow_up_draft", null);
+  if (demoProfiles.length) pendingQuery = pendingQuery.not("user_id", "in", `(${demoProfiles.map((p) => p.user_id).join(",")})`);
+  const { data: pending, error: pendingError } = await pendingQuery.order("last_activity_at", { ascending: false }).limit(MAX_DRAFTS_PER_RUN);
   if (pendingError) throw new Error(`Could not load ghosted applications (${pendingError.code})`);
 
   const namesByUser = new Map<string, string[]>();

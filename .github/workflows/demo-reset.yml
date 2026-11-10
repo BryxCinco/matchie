@@ -1,0 +1,59 @@
+# Resets the public demo account every night (workers/seed-demo.ts): fresh
+# sample data, and the email and password put back if a visitor changed them.
+#
+# Logs are public on a public repo. The worker prints counts and ids only.
+
+name: Demo reset
+
+on:
+  schedule:
+    # 20:00 UTC = 04:00 Asia/Manila, before the discovery run.
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write # failure alert
+
+concurrency:
+  group: demo-reset
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # 22.18+ runs .ts files directly (type stripping); no tsx needed.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --omit=dev
+
+      - name: Reset demo account
+        run: node workers/seed-demo.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Only so the script can refuse to touch the owner's account.
+          MATCHIE_USER_ID: ${{ secrets.MATCHIE_USER_ID }}
+
+      # GitHub sends no notification when a scheduled run fails; an issue does.
+      - name: Open an issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Demo reset failing"
+          if [ -n "$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')" ]; then
+            echo "An open issue already exists; not filing another."
+            exit 0
+          fi
+          gh issue create --title "$title" \
+            --body "The demo reset failed: $RUN_URL. Check that migration 014 is applied and the Supabase secrets are set. Close this issue once it is fixed."

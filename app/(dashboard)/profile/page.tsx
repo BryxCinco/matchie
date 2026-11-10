@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { isDemoUser } from "@/lib/auth/is-demo-user";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import { ResumeContentSchema } from "@/lib/resume";
@@ -68,7 +69,14 @@ async function AvatarSection() {
   ]);
   const resumeName = ResumeContentSchema.safeParse(resume?.content ?? {}).data?.contact.name;
   const email = user.email ?? "";
-  return <AvatarUploader initialUrl={profile?.avatar_url ?? null} name={resumeName || email.split("@")[0] || "You"} email={email} />;
+  return (
+    <AvatarUploader
+      initialUrl={profile?.avatar_url ?? null}
+      name={resumeName || email.split("@")[0] || "You"}
+      email={email}
+      demo={await isDemoUser()}
+    />
+  );
 }
 
 async function ResumeLoader() {

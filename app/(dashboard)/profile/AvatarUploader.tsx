@@ -2,11 +2,12 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Avatar } from "../Avatar";
+import { DemoLocked, DemoLockNote } from "../DemoLock";
 import { removeAvatar, uploadAvatar } from "./actions";
 
 const SIZE = 256;
 
-export function AvatarUploader({ initialUrl, name, email }: { initialUrl: string | null; name: string; email: string }) {
+export function AvatarUploader({ initialUrl, name, email, demo = false }: { initialUrl: string | null; name: string; email: string; demo?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState(initialUrl);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +38,7 @@ export function AvatarUploader({ initialUrl, name, email }: { initialUrl: string
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        disabled={pending}
+        disabled={pending || demo}
         aria-label="Change profile photo"
         className="group pressable relative rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange-500"
       >
@@ -59,9 +60,11 @@ export function AvatarUploader({ initialUrl, name, email }: { initialUrl: string
           <p className="truncate text-sm text-zinc-500 dark:text-zinc-400">{email}</p>
         </div>
         <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
-          <button type="button" onClick={() => inputRef.current?.click()} disabled={pending} className="btn-primary min-h-11 px-5">
-            {url ? "Change photo" : "Upload photo"}
-          </button>
+          <DemoLocked locked={demo}>
+            <button type="button" onClick={() => inputRef.current?.click()} disabled={pending || demo} className="btn-primary min-h-11 px-5">
+              {url ? "Change photo" : "Upload photo"}
+            </button>
+          </DemoLocked>
           {url && (
             <button
               type="button"
@@ -79,6 +82,7 @@ export function AvatarUploader({ initialUrl, name, email }: { initialUrl: string
             </button>
           )}
         </div>
+        {demo && <DemoLockNote className="justify-center sm:justify-start" />}
         {error && (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             {error}

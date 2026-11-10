@@ -6,8 +6,9 @@ import { HeroStage } from "./HeroStage";
 import { Backdrop, CheckIcon, Container, LockIcon, Logo, PrimaryCta, SectionTitle, Svg } from "./site";
 
 // The home page: what Matchie is, for visitors and signed-in users alike
-// (the calls to action switch to "Open your dashboard"). Prerendered, apart
-// from those buttons. Every name in the previews is invented.
+// (the calls to action open the live demo, or "Open your dashboard" when
+// signed in). Prerendered, apart from those buttons. Every name in the
+// previews is invented.
 
 export const metadata: Metadata = {
   title: { absolute: "Matchie · Your job hunt, on autopilot" },
@@ -24,6 +25,7 @@ export default function LandingPage() {
         <Stats />
         <Features />
         <HowItWorks />
+        <BuiltForOne />
         <Privacy />
         <FinalCta />
       </main>
@@ -187,6 +189,67 @@ function HowItWorks() {
   );
 }
 
+// --- Built for one ----------------------------------------------------------------
+
+const STACK = ["Next.js 16", "React 19", "TypeScript", "Tailwind CSS", "Supabase", "PostgreSQL + RLS", "Gemini + Groq", "GitHub Actions", "Resend", "Vercel"];
+
+function BuiltForOne() {
+  const reasons = [
+    {
+      title: "The AI budget is the limit",
+      body: "Free tiers allow about 50 scoring calls a day. So every job passes free SQL filters and a full-text shortlist first, and only the best few reach the AI.",
+    },
+    {
+      title: "An inbox is personal",
+      body: "Moving the tracker from recruiter email means reading an inbox. Matchie reads one: its owner’s. It never asks a stranger for theirs.",
+    },
+    {
+      title: "Multi-user underneath",
+      body: "Every table has a user_id and row-level security. Opening it to more people is a per-user quota and a loop in the workers, not a rewrite.",
+    },
+  ];
+  return (
+    <section id="built" className="scroll-mt-24">
+      <Container className="flex flex-col gap-10">
+        <div className="reveal flex flex-col gap-4">
+          <SectionTitle eyebrow="Why one user" title={<>Built for one, <em className="accent-word">on purpose</em></>} />
+          <p className="max-w-2xl text-lg text-zinc-600 dark:text-zinc-400">
+            Matchie runs its owner’s real job search every day. Keeping it to one person is a trade-off, not a shortcut, and the demo account shows everything else.
+          </p>
+        </div>
+        <ul className="grid gap-4 md:grid-cols-3">
+          {reasons.map((reason) => (
+            <li key={reason.title} className="reveal card flex h-full flex-col gap-2 p-6 sm:p-7">
+              <h3 className="font-display text-xl font-medium">{reason.title}</h3>
+              <p className="text-zinc-600 dark:text-zinc-400">{reason.body}</p>
+            </li>
+          ))}
+        </ul>
+        <div className="reveal flex flex-col gap-4">
+          <p className="eyebrow">
+            <span>The stack</span>
+          </p>
+          <ul className="flex flex-wrap gap-2">
+            {STACK.map((tech) => (
+              <li key={tech} className="rounded-full border border-zinc-200 px-3.5 py-1.5 text-sm font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
+                {tech}
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <Link href="/about" className="link">
+              How it is built
+            </Link>
+            <a href="https://github.com/BryxCinco/matchie" target="_blank" rel="noreferrer" className="link">
+              Source on GitHub
+            </a>
+          </div>
+        </div>
+      </Container>
+    </section>
+  );
+}
+
 // --- Privacy --------------------------------------------------------------------
 
 function Privacy() {
@@ -244,7 +307,9 @@ function FinalCta() {
           <h2 className="relative max-w-2xl font-display text-4xl leading-[1.02] font-medium tracking-tight sm:text-6xl">
             Stop tracking jobs in a <em className="accent-word">spreadsheet</em>
           </h2>
-          <p className="relative max-w-lg text-lg text-zinc-600 dark:text-zinc-400">Set up your profile in five minutes. Tomorrow morning, your first digest is waiting.</p>
+          <p className="relative max-w-lg text-lg text-zinc-600 dark:text-zinc-400">
+            Open the demo account: a full tracker, scored matches and analytics, with sample data that resets every night. No sign-up.
+          </p>
           <PrimaryCta className="relative" />
         </section>
       </div>

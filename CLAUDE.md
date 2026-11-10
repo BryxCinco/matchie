@@ -15,9 +15,9 @@ AI job search agent: paste a JD, get a match score, track applications on a Kanb
 - `app/`: routes. The `(dashboard)` route group needs a signed-in user; `proxy.ts` guards `/dashboard`, `/tracker` and `/onboarding`.
 - `lib/`: domain logic (scrubber, LLM router, scoring, email classifier, resume parser).
 - `lib/supabase/`: `client.ts` (browser), `server.ts` (RSC and actions), `admin.ts` (service role, **workers only**).
-- `workers/`: GitHub Actions jobs. `email-poller.ts` (every 2 hours); `ats-poller.ts` → `ghosting-checker.ts` → `score-matches.ts` → `digest.ts` (daily, in that order).
-- `supabase/migrations/`: numbered SQL files, `001` through `013`.
-- `.github/workflows/`: `ci.yml`, `keepalive.yml`, `email-poller.yml`, `discovery.yml`.
+- `workers/`: GitHub Actions jobs. `email-poller.ts` (every 2 hours); `ats-poller.ts` → `ghosting-checker.ts` → `score-matches.ts` → `digest.ts` (daily, in that order); `seed-demo.ts` (nightly demo reset).
+- `supabase/migrations/`: numbered SQL files, `001` through `014`.
+- `.github/workflows/`: `ci.yml`, `keepalive.yml`, `email-poller.yml`, `discovery.yml`, `demo-reset.yml`.
 
 ## Discovery pipeline (SPEC "The matching pipeline")
 
@@ -30,6 +30,10 @@ The binding constraint is the LLM budget (~50 scoring calls a day on free tiers)
 5. **Digest** (`digest.ts`): best unsent matches via Resend, then `matches.digest_sent_at` is stamped. Each match is emailed at most once.
 
 Never move a stage after scoring, or score before the SQL stages: it spends the budget on jobs the rules would have dropped.
+
+## Demo account
+
+A public demo login (`lib/demo.ts`, `profiles.is_demo`, migration 014) for the portfolio site. Its password is published. Any new feature that calls an LLM, changes credentials, uploads files or sends email must refuse demo accounts on the server (`isDemoAccount()`), not only in the UI. Workers that loop over users skip demo accounts.
 
 ## Hard rules
 

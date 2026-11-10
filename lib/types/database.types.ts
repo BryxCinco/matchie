@@ -535,6 +535,7 @@ export type Database = {
           home_lat: number | null
           home_lng: number | null
           id: string
+          is_demo: boolean
           locale: string
           updated_at: string
           user_id: string
@@ -545,6 +546,7 @@ export type Database = {
           home_lat?: number | null
           home_lng?: number | null
           id?: string
+          is_demo?: boolean
           locale?: string
           updated_at?: string
           user_id: string
@@ -555,6 +557,7 @@ export type Database = {
           home_lat?: number | null
           home_lng?: number | null
           id?: string
+          is_demo?: boolean
           locale?: string
           updated_at?: string
           user_id?: string
@@ -731,6 +734,10 @@ export type Database = {
           p_scheduled_at?: string
         }
         Returns: number
+      }
+      seed_demo_application: {
+        Args: { p_history: Json; p_job_id: string; p_user_id: string }
+        Returns: string
       }
       shortlist_my_jobs: {
         Args: { p_limit?: number }

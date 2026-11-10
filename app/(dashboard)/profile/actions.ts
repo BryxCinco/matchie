@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
+import { DEMO_DISABLED, isDemoAccount } from "@/lib/demo";
 
 export type AvatarResult = { ok: true; url: string | null } | { ok: false; error: string };
 
@@ -25,6 +26,9 @@ export async function uploadAvatar(formData: FormData): Promise<AvatarResult> {
   if (file.size > MAX_BYTES) return { ok: false, error: "That image is too large. Try a smaller one." };
 
   const supabase = await createClient();
+  // The bucket is public-read; the shared demo login must not host files.
+  // Storage RLS refuses it too (migration 014).
+  if (await isDemoAccount(supabase, user.id)) return { ok: false, error: `${DEMO_DISABLED}.` };
   // Random name: the bucket is public-read, so the URL must not be guessable.
   const path = `${user.id}/${randomUUID()}.${extension}`;
   const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {

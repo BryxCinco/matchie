@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
+import { DEMO_DISABLED, isDemoAccount } from "@/lib/demo";
 
 export type SettingsState = { error: string | null; message: string | null };
 
@@ -15,11 +16,13 @@ const PasswordSchema = z
   .refine((v) => v.password === v.confirm, { message: "The passwords do not match.", path: ["confirm"] });
 
 export async function changePassword(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
-  await requireUser("/settings");
+  const user = await requireUser("/settings");
   const parsed = PasswordSchema.safeParse({ password: formData.get("password"), confirm: formData.get("confirm") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form.", message: null };
 
   const supabase = await createClient();
+  // One visitor must not lock the others out of the shared demo login.
+  if (await isDemoAccount(supabase, user.id)) return { error: `${DEMO_DISABLED}.`, message: null };
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) {
     // Supabase's messages here are user-facing ("New password should be
@@ -37,6 +40,7 @@ export async function sendPasswordReset(): Promise<SettingsState> {
   if (!user.email) return { error: "Your account has no email address.", message: null };
 
   const supabase = await createClient();
+  if (await isDemoAccount(supabase, user.id)) return { error: `${DEMO_DISABLED}.`, message: null };
   const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
     redirectTo: `${await appOrigin()}/auth/callback?next=/settings`,
   });

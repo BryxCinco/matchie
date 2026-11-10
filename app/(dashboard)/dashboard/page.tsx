@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
+import { isDemoUser } from "@/lib/auth/is-demo-user";
 import { requireUser } from "@/lib/auth/require-user";
 import { FadeIn } from "../motion";
 import { QuickActions } from "./QuickActions";
@@ -57,7 +58,9 @@ export default function DashboardPage() {
           </div>
         </Section>
         <Section title="Quick actions">
-          <QuickActions />
+          <Suspense fallback={<QuickActions />}>
+            <QuickActionsLoader />
+          </Suspense>
         </Section>
       </FadeIn>
     </div>
@@ -74,6 +77,11 @@ function Section({ title, action, className = "", children }: { title: string; a
       {children}
     </section>
   );
+}
+
+async function QuickActionsLoader() {
+  await requireUser("/dashboard");
+  return <QuickActions demo={await isDemoUser()} />;
 }
 
 async function Greeting() {

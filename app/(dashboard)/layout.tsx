@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import Link from "next/link";
+import { isDemoUser } from "@/lib/auth/is-demo-user";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "./actions";
@@ -26,6 +28,9 @@ export default function DashboardLayout({ children }: LayoutProps<"/">) {
       />
       {/* Bottom padding on phones clears the fixed tab bar and the home indicator. */}
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 md:pb-10">
+        <Suspense fallback={null}>
+          <DemoBanner />
+        </Suspense>
         <Suspense fallback={<p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>}>{children}</Suspense>
       </main>
     </div>
@@ -45,6 +50,22 @@ async function UserMenu() {
         </button>
       </form>
     </>
+  );
+}
+
+// Only for the public demo login: says what is real and what is not.
+async function DemoBanner() {
+  if (!(await isDemoUser())) return null;
+  return (
+    <aside className="card mb-6 flex flex-col gap-3 border-orange-500/40 p-4 text-sm sm:flex-row sm:items-center sm:justify-between sm:p-5 dark:border-orange-500/40">
+      <p className="text-zinc-700 dark:text-zinc-300">
+        <span className="font-semibold text-zinc-950 dark:text-zinc-50">You are exploring the demo account.</span> The jobs, companies and history are invented and reset
+        every night. AI scoring, password changes and uploads are turned off.
+      </p>
+      <Link href="/" className="btn-secondary min-h-11 shrink-0 px-4">
+        About Matchie
+      </Link>
+    </aside>
   );
 }
 

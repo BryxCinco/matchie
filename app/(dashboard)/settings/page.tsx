@@ -1,10 +1,12 @@
 import { Suspense, type ReactNode } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { isDemoUser } from "@/lib/auth/is-demo-user";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "../actions";
 import { Avatar } from "../Avatar";
+import { DemoLockNote } from "../DemoLock";
 import { FadeIn } from "../motion";
 import { PasswordForm, ResetLinkButton } from "./AccountForms";
 import { DeleteAccountButton } from "./DangerZone";
@@ -28,10 +30,9 @@ export default function SettingsPage() {
           </Suspense>
           <Divider />
           <Row title="Password" description="Change it here, or get a reset link by email if you are not sure of the current one.">
-            <div className="flex flex-col gap-4">
-              <PasswordForm />
-              <ResetLinkButton />
-            </div>
+            <Suspense fallback={<PasswordControls demo={false} />}>
+              <PasswordSection />
+            </Suspense>
           </Row>
         </Group>
       </FadeIn>
@@ -68,12 +69,34 @@ export default function SettingsPage() {
       <FadeIn delay={0.2}>
         <Group title="Danger zone" danger>
           <Row title="Delete account" description="Permanently removes your profile, resume, matches and applications. This cannot be undone.">
-            <DeleteAccountButton />
+            <Suspense fallback={<DeleteAccountButton />}>
+              <DeleteAccountSection />
+            </Suspense>
           </Row>
         </Group>
       </FadeIn>
     </div>
   );
+}
+
+async function PasswordSection() {
+  await requireUser("/settings");
+  return <PasswordControls demo={await isDemoUser()} />;
+}
+
+function PasswordControls({ demo }: { demo: boolean }) {
+  return (
+    <div className="flex flex-col gap-4">
+      {demo && <DemoLockNote />}
+      <PasswordForm demo={demo} />
+      <ResetLinkButton demo={demo} />
+    </div>
+  );
+}
+
+async function DeleteAccountSection() {
+  await requireUser("/settings");
+  return <DeleteAccountButton demo={await isDemoUser()} />;
 }
 
 async function AccountSummary() {

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { saveJobToTracker, type SaveToTrackerResult } from "../tracker/actions";
+import { DemoLocked } from "../DemoLock";
 import { ScoreRing } from "../ScoreRing";
 import type { ScoreExistingJobResponse } from "@/lib/match-scoring";
 
@@ -33,7 +34,7 @@ const SCORE_TIMEOUT_MS = 55_000;
 
 const WORK_SETUP_LABEL = { onsite: "On-site", hybrid: "Hybrid", remote: "Remote" } as const;
 
-export function DiscoverList({ initialItems, shortlistFailed }: { initialItems: DiscoverItem[]; shortlistFailed: boolean }) {
+export function DiscoverList({ initialItems, shortlistFailed, demo = false }: { initialItems: DiscoverItem[]; shortlistFailed: boolean; demo?: boolean }) {
   const [items, setItems] = useState(initialItems);
   // Jobs scored on this page stay in the Unscored tab until the tab changes,
   // so a card does not vanish the moment its score arrives.
@@ -70,7 +71,7 @@ export function DiscoverList({ initialItems, shortlistFailed }: { initialItems: 
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {visible.map((item, index) => (
             <li key={item.jobId} className="animate-rise" style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}>
-              <JobCard item={item} onScored={onScored} />
+              <JobCard item={item} onScored={onScored} demo={demo} />
             </li>
           ))}
         </ul>
@@ -121,7 +122,15 @@ function SegmentedControl({ value, onChange, counts }: { value: Tab; onChange: (
 
 // --- Job card ---------------------------------------------------------------------
 
-function JobCard({ item, onScored }: { item: DiscoverItem; onScored: (jobId: string, match: NonNullable<DiscoverItem["match"]>) => void }) {
+function JobCard({
+  item,
+  onScored,
+  demo,
+}: {
+  item: DiscoverItem;
+  onScored: (jobId: string, match: NonNullable<DiscoverItem["match"]>) => void;
+  demo: boolean;
+}) {
   const [scoring, setScoring] = useState(false);
   const [scoreError, setScoreError] = useState<string | null>(null);
   const [saving, startSave] = useTransition();
@@ -223,9 +232,11 @@ function JobCard({ item, onScored }: { item: DiscoverItem; onScored: (jobId: str
               </button>
             ) : (
               <>
-                <button type="button" disabled={scoring} onClick={score} className="btn-primary min-h-11 flex-1 px-4">
-                  {scoring ? "Scoring…" : scoreError ? "Try again" : "Score job"}
-                </button>
+                <DemoLocked locked={demo} className="flex flex-1">
+                  <button type="button" disabled={scoring || demo} onClick={score} className="btn-primary min-h-11 flex-1 px-4">
+                    {scoring ? "Scoring…" : scoreError ? "Try again" : "Score job"}
+                  </button>
+                </DemoLocked>
                 <button
                   type="button"
                   disabled={saving}
