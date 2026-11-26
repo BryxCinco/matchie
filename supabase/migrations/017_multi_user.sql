@@ -22,12 +22,15 @@
 -- user id lands in this public repo.
 --
 -- Design: docs/superpowers/specs/2026-11-26-multi-user-design.md
+--
+-- Safe to re-run: a first attempt that stopped halfway can be run again
+-- (if not exists, create or replace, drop ... if exists before create).
 
 -- ===========================================================================
 -- 1. Invite codes and the sign-up hook
 -- ===========================================================================
 
-create table public.invite_codes (
+create table if not exists public.invite_codes (
   code        text primary key,
   max_uses    integer not null default 1 check (max_uses > 0),
   used_count  integer not null default 0 check (used_count >= 0),
@@ -91,8 +94,8 @@ grant execute on function public.hook_check_invite(jsonb) to supabase_auth_admin
 -- ===========================================================================
 
 alter table public.profiles
-  add column daily_llm_quota integer check (daily_llm_quota >= 0),
-  add column llm_reserved boolean not null default false;
+  add column if not exists daily_llm_quota integer check (daily_llm_quota >= 0),
+  add column if not exists llm_reserved boolean not null default false;
 
 comment on column public.profiles.daily_llm_quota is
   'LLM calls a day for this user; null = the default in consume_llm_quota(). Set only by the service role.';
@@ -121,11 +124,12 @@ begin
 end;
 $$;
 
+drop trigger if exists profiles_protect_llm_quota on public.profiles;
 create trigger profiles_protect_llm_quota
   before insert or update on public.profiles
   for each row execute function public.protect_llm_quota_columns();
 
-create table public.llm_usage (
+create table if not exists public.llm_usage (
   user_id       uuid not null references auth.users (id) on delete cascade,
   day           date not null,
   calls         integer not null default 0 check (calls >= 0),
@@ -138,6 +142,7 @@ comment on table public.llm_usage is
 
 alter table public.llm_usage enable row level security;
 
+drop policy if exists "Users read own usage" on public.llm_usage;
 create policy "Users read own usage" on public.llm_usage
   for select to authenticated
   using ((select auth.uid()) = user_id);
