@@ -216,7 +216,14 @@ async function prepareDemoUser(supabase: Supabase) {
   if (userId && flagged.length === 0) await assertNoData(supabase, userId);
 
   if (!userId) {
-    const { data, error: createError } = await supabase.auth.admin.createUser({ email: DEMO_EMAIL, password: DEMO_PASSWORD, email_confirm: true });
+    const { data, error: createError } = await supabase.auth.admin.createUser({
+      email: DEMO_EMAIL,
+      password: DEMO_PASSWORD,
+      email_confirm: true,
+      // Lets the invite-code auth hook (017, hook_check_invite) pass this user;
+      // only the service role can set app_metadata.
+      app_metadata: { matchie_demo: true },
+    });
     if (createError || !data.user) throw new Error(`Could not create the demo user (${createError?.code ?? "no user"})`);
     userId = data.user.id;
     console.log("[seed-demo] created the demo user");

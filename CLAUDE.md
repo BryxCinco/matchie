@@ -1,6 +1,6 @@
 # Matchie
 
-AI job search agent: paste a JD, get a match score, track applications on a Kanban board, and let an IMAP poller move applications from recruiter email. Single user for now. The repo is **public**.
+AI job search agent: paste a JD, get a match score, track applications on a Kanban board, and let an IMAP poller move applications from recruiter email. Multi-user and invite-only (migration 017); email tracking and the digest are owner-only. The repo is **public**.
 
 ## Stack
 
@@ -15,8 +15,8 @@ AI job search agent: paste a JD, get a match score, track applications on a Kanb
 - `app/`: routes. The `(dashboard)` route group needs a signed-in user; `proxy.ts` guards `/dashboard`, `/tracker` and `/onboarding`.
 - `lib/`: domain logic (scrubber, LLM router, scoring, email classifier, resume parser).
 - `lib/supabase/`: `client.ts` (browser), `server.ts` (RSC and actions), `admin.ts` (service role, **workers only**).
-- `workers/`: GitHub Actions jobs. `email-poller.ts` (every 2 hours); `ats-poller.ts` → `ghosting-checker.ts` → `score-matches.ts` → `digest.ts` (daily, in that order); `seed-demo.ts` (nightly demo reset).
-- `supabase/migrations/`: numbered SQL files, `001` through `016`.
+- `workers/`: GitHub Actions jobs. `email-poller.ts` (every 2 hours); `ats-poller.ts` → `ghosting-checker.ts` → `score-matches.ts` → `digest.ts` (daily, in that order); `seed-demo.ts` (nightly demo reset). `email-poller` and `digest` act for the owner (`MATCHIE_USER_ID`); the others serve every eligible user (`lib/worker-users.ts`), round-robin.
+- `supabase/migrations/`: numbered SQL files, `001` through `017`. `supabase/checks/`: manual SQL checks that roll back.
 - `.github/workflows/`: `ci.yml`, `keepalive.yml`, `email-poller.yml`, `discovery.yml`, `demo-reset.yml`.
 
 ## Discovery pipeline (SPEC "The matching pipeline")
@@ -30,6 +30,13 @@ The binding constraint is the LLM budget (~50 scoring calls a day on free tiers)
 5. **Digest** (`digest.ts`): best unsent matches via Resend, then `matches.digest_sent_at` is stamped. Each match is emailed at most once.
 
 Never move a stage after scoring, or score before the SQL stages: it spends the budget on jobs the rules would have dropped.
+
+## Multi-user and the LLM quota (migration 017)
+
+- Sign-up needs an invite code, enforced by the `hook_check_invite` auth hook in the database, not by the form.
+- **Every LLM call is charged first**: `chargeMe()` in the app, `chargeUser()` in workers (`lib/llm-quota.ts`). A refused or failed charge means no call. Charge after any cache check, right before the call.
+- `consume_llm_quota()` is the only writer of `llm_usage`. The owner has `profiles.llm_reserved`, a share outside the shared pool. Users cannot change `llm_reserved` or `daily_llm_quota` (trigger).
+- `delete_my_account()` deletes the caller's `auth.users` row; every user table must cascade from it. New user tables need `on delete cascade`.
 
 ## Demo account
 

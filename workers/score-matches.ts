@@ -3,14 +3,18 @@
 // Run by .github/workflows/discovery.yml after the ATS poller:
 //   node workers/score-matches.ts
 //
-// Budget: every job scored here is one LLM call (~3,500 tokens). Groq's free
-// tier allows ~50 a day across all features, so the cap is deliberately low;
-// what is not scored today is still in the shortlist tomorrow.
+// Multi-user: serves every eligible user (lib/worker-users.ts) round-robin,
+// reserved users first in each pass.
+//
+// Budget: every job scored here is one LLM call (~3,500 tokens), charged
+// first to the user's daily quota (consume_llm_quota, migration 017). The
+// run cap is deliberately low; what is not scored today is still in the
+// shortlist tomorrow.
 //
 // LOGGING RULE: public repo, public logs. Counts and ids only.
 //
 // Env:
-//   MATCHIE_USER_ID, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+//   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 //   GEMINI_API_KEY, GROQ_API_KEY
 //   Optional: MAX_SCORES_PER_RUN (30), SCORE_DELAY_MS (10000)
 
@@ -18,6 +22,9 @@ import { createClient } from "../lib/supabase/admin.ts";
 import { describeError } from "../lib/describe-error.ts";
 import { scoreJob } from "../lib/match-scoring.ts";
 import { toCandidateSummary } from "../lib/resume.ts";
+import { chargeUser } from "../lib/llm-quota.ts";
+import { interleave } from "../lib/round-robin.ts";
+import { loadEligibleUsers } from "../lib/worker-users.ts";
 
 const MAX_SCORES_PER_RUN = Number(process.env.MAX_SCORES_PER_RUN ?? 30);
 // Gemini's free tier allows few requests per minute; spacing calls avoids
@@ -26,7 +33,7 @@ const SCORE_DELAY_MS = Number(process.env.SCORE_DELAY_MS ?? 10_000);
 // Both providers down: stop instead of failing the rest of the shortlist.
 const MAX_CONSECUTIVE_FAILURES = 3;
 
-const stats = { shortlisted: 0, scored: 0, failed: 0 };
+const stats = { users: 0, shortlisted: 0, scored: 0, failed: 0, quotaSkipped: 0 };
 
 function requireEnv(name: string) {
   const value = process.env[name];
@@ -35,37 +42,32 @@ function requireEnv(name: string) {
 }
 
 async function main() {
-  const userId = requireEnv("MATCHIE_USER_ID");
   requireEnv("GEMINI_API_KEY");
   const supabase = createClient();
 
-  const [{ data: seeker, error: seekerError }, { data: resume, error: resumeError }] = await Promise.all([
-    supabase
-      .from("seeker_profiles")
-      .select("target_roles, min_salary, work_setup, avoid_industries, skills, years_experience, home_city, preferred_locations")
-      .eq("user_id", userId)
-      .maybeSingle(),
-    supabase.from("resumes").select("content").eq("user_id", userId).eq("is_master", true).maybeSingle(),
-  ]);
-  if (seekerError || resumeError) throw new Error(`Could not load profile (${(seekerError ?? resumeError)!.code})`);
-  if (!seeker) {
-    console.log("[score-matches] no seeker profile yet; nothing to score");
-    return;
+  const users = await loadEligibleUsers(supabase);
+  const queues: { key: string; items: string[] }[] = [];
+  const contextByUser = new Map<string, UserContext>();
+  for (const { userId } of users) {
+    const loaded = await loadUserContext(supabase, userId);
+    if (!loaded) continue;
+    const { data: shortlist, error } = await supabase.rpc("shortlist_jobs", { p_user_id: userId, p_limit: MAX_SCORES_PER_RUN });
+    if (error) {
+      stats.failed++;
+      console.error(`[score-matches] user ${userId}: shortlist_jobs failed (${error.code})`);
+      continue;
+    }
+    if (shortlist.length === 0) continue;
+    contextByUser.set(userId, loaded);
+    queues.push({ key: userId, items: shortlist.map((row) => row.job_id) });
+    stats.shortlisted += shortlist.length;
   }
+  stats.users = queues.length;
 
-  const candidate = toCandidateSummary(resume?.content, seeker);
-  if (candidate.skills.length === 0 && candidate.experience.length === 0) {
-    console.log("[score-matches] no skills or resume yet; nothing to score");
-    return;
-  }
-
-  const { data: shortlist, error: shortlistError } = await supabase.rpc("shortlist_jobs", {
-    p_user_id: userId,
-    p_limit: MAX_SCORES_PER_RUN,
-  });
-  if (shortlistError) throw new Error(`shortlist_jobs failed (${shortlistError.code}): ${shortlistError.message}`);
-  stats.shortlisted = shortlist.length;
-  if (shortlist.length === 0) {
+  // Round-robin, reserved users first in each pass (loadEligibleUsers order),
+  // capped for the whole run. What is not scored stays shortlisted.
+  const work = interleave(queues).slice(0, MAX_SCORES_PER_RUN);
+  if (work.length === 0) {
     console.log(`[score-matches] ${JSON.stringify(stats)}`);
     return;
   }
@@ -73,18 +75,26 @@ async function main() {
   const { data: jobs, error: jobsError } = await supabase
     .from("jobs")
     .select("id, title, description, location, work_setup, company:companies(name)")
-    .in(
-      "id",
-      shortlist.map((row) => row.job_id),
-    );
+    .in("id", [...new Set(work.map((w) => w.item))]);
   if (jobsError) throw new Error(`Could not load jobs (${jobsError.code})`);
   const jobById = new Map(jobs.map((job) => [job.id, job]));
 
+  const exhausted = new Set<string>();
   let consecutiveFailures = 0;
-  for (const [index, { job_id }] of shortlist.entries()) {
+  let called = false;
+  for (const { key: userId, item: job_id } of work) {
     const job = jobById.get(job_id);
-    if (!job) continue;
-    if (index > 0) await sleep(SCORE_DELAY_MS);
+    const context = contextByUser.get(userId);
+    if (!job || !context || exhausted.has(userId)) continue;
+
+    // Charged before the call; a refusal means this user is done for today.
+    if (!(await chargeUser(supabase, userId, 1, true))) {
+      exhausted.add(userId);
+      stats.quotaSkipped++;
+      continue;
+    }
+    if (called) await sleep(SCORE_DELAY_MS);
+    called = true;
 
     // Board postings put title, company and location in fields, not the text.
     const header = [
@@ -95,7 +105,7 @@ async function main() {
     ]
       .filter(Boolean)
       .join("\n");
-    const result = await scoreJob(`${header}\n\n${job.description ?? ""}`, candidate, seeker);
+    const result = await scoreJob(`${header}\n\n${job.description ?? ""}`, context.candidate, context.seeker);
 
     if (result.failed) {
       stats.failed++;
@@ -132,6 +142,31 @@ async function main() {
   console.log(`[score-matches] ${JSON.stringify(stats)}`);
   // Some failures are expected on a busy day; none scored means a real outage.
   if (stats.scored === 0 && stats.failed > 0) process.exitCode = 1;
+}
+
+type Supabase = ReturnType<typeof createClient>;
+type UserContext = NonNullable<Awaited<ReturnType<typeof loadUserContext>>>;
+
+// The user's preferences and skills summary, or null when there is nothing
+// to score with yet (no seeker profile, or no skills and no resume).
+async function loadUserContext(supabase: Supabase, userId: string) {
+  const [{ data: seeker, error: seekerError }, { data: resume, error: resumeError }] = await Promise.all([
+    supabase
+      .from("seeker_profiles")
+      .select("target_roles, min_salary, work_setup, avoid_industries, skills, years_experience, home_city, preferred_locations")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase.from("resumes").select("content").eq("user_id", userId).eq("is_master", true).maybeSingle(),
+  ]);
+  if (seekerError || resumeError) {
+    stats.failed++;
+    console.error(`[score-matches] user ${userId}: could not load profile (${(seekerError ?? resumeError)!.code})`);
+    return null;
+  }
+  if (!seeker) return null;
+  const candidate = toCandidateSummary(resume?.content, seeker);
+  if (candidate.skills.length === 0 && candidate.experience.length === 0) return null;
+  return { seeker, candidate };
 }
 
 function sleep(ms: number) {

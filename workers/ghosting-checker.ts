@@ -18,6 +18,7 @@
 import { createClient } from "../lib/supabase/admin.ts";
 import { describeError } from "../lib/describe-error.ts";
 import { draftFollowUp } from "../lib/follow-up.ts";
+import { chargeUser } from "../lib/llm-quota.ts";
 import { followUpTemplate, type FollowUpDraft } from "../lib/follow-up-template.ts";
 import { ResumeContentSchema } from "../lib/resume.ts";
 
@@ -27,7 +28,7 @@ const MAX_DRAFTS_PER_RUN = Number(process.env.MAX_DRAFTS_PER_RUN ?? 20);
 
 type Supabase = ReturnType<typeof createClient>;
 
-const stats = { ghosted: 0, drafted: 0, templated: 0, failed: 0 };
+const stats = { ghosted: 0, drafted: 0, templated: 0, failed: 0, quotaSkipped: 0 };
 
 async function main() {
   const supabase = createClient();
@@ -61,7 +62,11 @@ async function main() {
     };
 
     let draft: FollowUpDraft;
-    try {
+    // Charged to the application's owner first; out of quota gets the template.
+    if (!(await chargeUser(supabase, app.user_id, 1, true))) {
+      draft = followUpTemplate(context);
+      stats.quotaSkipped++;
+    } else try {
       draft = await draftFollowUp(context, { knownNames: namesByUser.get(app.user_id) });
       stats.drafted++;
     } catch (error) {

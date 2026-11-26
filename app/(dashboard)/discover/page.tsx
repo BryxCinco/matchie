@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { isDemoUser } from "@/lib/auth/is-demo-user";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
+import { QuotaBadge } from "../QuotaBadge";
 import { AnalyzeResumeButton } from "./AnalyzeResumeButton";
 import { DiscoverList, type DiscoverItem } from "./DiscoverList";
 
@@ -26,6 +27,9 @@ export default function DiscoverPage() {
           Jobs from the boards Matchie watches, filtered by your profile and ranked by fit.
         </p>
       </header>
+      <Suspense fallback={null}>
+        <QuotaBadge />
+      </Suspense>
       <Suspense fallback={<AnalyzeResumeButton />}>
         <AnalyzeSection />
       </Suspense>

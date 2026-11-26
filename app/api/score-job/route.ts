@@ -6,6 +6,7 @@ import { scoreJob, type MatchResult } from "@/lib/match-scoring";
 import { loadCandidate } from "@/lib/load-candidate";
 import { MAX_JD_CHARS, MIN_JD_CHARS } from "@/lib/job-description-limits";
 import { DEMO_DISABLED, isDemoAccount } from "@/lib/demo";
+import { chargeMe, QUOTA_REFUSED } from "@/lib/llm-quota";
 
 // Gemini, then the Groq fallback, each with a 30s timeout. The default
 // function limit would cut a fallback off halfway.
@@ -76,6 +77,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Charged only now: a cached score above costs nothing.
+  if (!(await chargeMe(supabase, 1))) return error(429, QUOTA_REFUSED);
   const result = await scoreJob(jobDescription, candidate, seeker);
   if (result.failed) {
     return error(500, `${result.reasoning}. The AI service is busy or unavailable; please try again in a few minutes.`);
