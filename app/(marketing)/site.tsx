@@ -5,7 +5,7 @@ import { DemoButton } from "../login/DemoButton";
 import { SiteLinks, MobileMenu } from "./SiteLinks";
 
 // Shared pieces of the public site: Home (/), About and Privacy.
-// Matchie is single-user, so the calls to action open the public demo
+// Accounts are invite-only, so the calls to action open the public demo
 // account (lib/demo.ts) instead of a sign-up form.
 
 export function Container({ children, className = "" }: { children: ReactNode; className?: string }) {

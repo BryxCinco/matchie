@@ -3,6 +3,7 @@ import Link from "next/link";
 import { isDemoUser } from "@/lib/auth/is-demo-user";
 import { requireUser } from "@/lib/auth/require-user";
 import { FadeIn } from "../motion";
+import { QuotaBadge } from "../QuotaBadge";
 import { QuickActions } from "./QuickActions";
 import { RecentMatches, RecentMatchesSkeleton } from "./RecentMatches";
 import { StatsSkeleton, StatsWidget } from "./StatsWidget";
@@ -25,6 +26,9 @@ export default function DashboardPage() {
           <h1 className="font-display text-4xl leading-[0.95] font-medium sm:text-5xl lg:text-6xl">
             Command <em className="accent-word">Center</em>
           </h1>
+          <Suspense fallback={null}>
+            <QuotaBadge />
+          </Suspense>
         </header>
       </FadeIn>
 

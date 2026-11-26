@@ -197,24 +197,24 @@ function BuiltForOne() {
   const reasons = [
     {
       title: "The AI budget is the limit",
-      body: "Free tiers allow about 50 scoring calls a day. So every job passes free SQL filters and a full-text shortlist first, and only the best few reach the AI.",
+      body: "Free tiers allow about 50 AI calls a day for everyone together. Every job passes free SQL filters first, and each user gets a fair daily share, enforced in the database.",
     },
     {
       title: "An inbox is personal",
-      body: "Moving the tracker from recruiter email means reading an inbox. Matchie reads one: its owner’s. It never asks a stranger for theirs.",
+      body: "Moving the tracker from recruiter email means reading an inbox. Matchie reads one: its owner’s. It never asks anyone else for their mailbox password.",
     },
     {
-      title: "Multi-user underneath",
-      body: "Every table has a user_id and row-level security. Opening it to more people is a per-user quota and a loop in the workers, not a rewrite.",
+      title: "Multi-user, invite-only",
+      body: "Every table has a user_id and row-level security, every worker serves each user in turn, and sign-up needs an invite code checked by the database.",
     },
   ];
   return (
     <section id="built" className="scroll-mt-24">
       <Container className="flex flex-col gap-10">
         <div className="reveal flex flex-col gap-4">
-          <SectionTitle eyebrow="Why one user" title={<>Built for one, <em className="accent-word">on purpose</em></>} />
+          <SectionTitle eyebrow="Why invite-only" title={<>Small, <em className="accent-word">on purpose</em></>} />
           <p className="max-w-2xl text-lg text-zinc-600 dark:text-zinc-400">
-            Matchie runs its owner’s real job search every day. Keeping it to one person is a trade-off, not a shortcut, and the demo account shows everything else.
+            Matchie runs its owner’s real job search every day, and a few invited people use it too. Keeping it small is a trade-off, not a shortcut, and the demo account shows everything to everyone else.
           </p>
         </div>
         <ul className="grid gap-4 md:grid-cols-3">
@@ -308,7 +308,7 @@ function FinalCta() {
             Stop tracking jobs in a <em className="accent-word">spreadsheet</em>
           </h2>
           <p className="relative max-w-lg text-lg text-zinc-600 dark:text-zinc-400">
-            Open the demo account: a full tracker, scored matches and analytics, with sample data that resets every night. No sign-up.
+            Open the demo account: a full tracker, scored matches and analytics, with sample data that resets every night. No sign-up. Have an invite code? Create your own account.
           </p>
           <PrimaryCta className="relative" />
         </section>

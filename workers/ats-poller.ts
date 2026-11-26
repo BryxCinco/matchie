@@ -21,6 +21,7 @@ import {
   type AtsPosting,
 } from "../lib/ats.ts";
 import type { Json } from "../lib/types/database.types.ts";
+import { loadEligibleUsers, mergePreferredPlaces } from "../lib/worker-users.ts";
 
 const RETENTION_DAYS = Number(process.env.RETENTION_DAYS ?? 60);
 const KEEP_ALL_LOCATIONS = process.env.ATS_KEEP_ALL_LOCATIONS === "1";
@@ -70,18 +71,26 @@ async function main() {
   if (stats.dbErrors > 0 || (stats.boards > 0 && stats.boardsFailed === stats.boards)) process.exitCode = 1;
 }
 
-// Single user for now: keep postings in the places they said they want to
-// work (e.g. "Singapore"), on top of PH and open remote. Optional: without
-// MATCHIE_USER_ID the poller keeps only PH and open remote.
+// Keep postings in the places any user said they want to work (e.g.
+// "Singapore"), on top of PH and open remote. Each user's own matches are
+// still filtered by their preferences in shortlist_jobs().
 async function loadPreferredPlaces(supabase: Supabase) {
-  const userId = process.env.MATCHIE_USER_ID;
-  if (!userId) return [];
-  const { data, error } = await supabase.from("seeker_profiles").select("preferred_locations").eq("user_id", userId).maybeSingle();
-  if (error) {
-    console.warn(`[ats-poller] preferred locations not loaded (${error.code}); keeping PH and open remote only`);
+  try {
+    const users = await loadEligibleUsers(supabase);
+    if (users.length === 0) return [];
+    const { data, error } = await supabase
+      .from("seeker_profiles")
+      .select("preferred_locations")
+      .in(
+        "user_id",
+        users.map((u) => u.userId),
+      );
+    if (error) throw new Error(`preferred_locations (${error.code})`);
+    return mergePreferredPlaces(data.map((row) => row.preferred_locations));
+  } catch (error) {
+    console.warn(`[ats-poller] preferred locations not loaded (${describeError(error)}); keeping PH and open remote only`);
     return [];
   }
-  return (data?.preferred_locations ?? []).map((place) => place.trim()).filter((place) => place.length >= 2);
 }
 
 async function pollBoard(supabase: Supabase, board: Board, preferredPlaces: string[]) {

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { scoreJob, type MatchResult, type ScoreExistingJobResponse } from "@/lib/match-scoring";
 import { loadCandidate } from "@/lib/load-candidate";
 import { DEMO_DISABLED, isDemoAccount } from "@/lib/demo";
+import { chargeMe, QUOTA_REFUSED } from "@/lib/llm-quota";
 
 // Gemini, then the Groq fallback, each with a 30s timeout. The default
 // function limit would cut a fallback off halfway.
@@ -68,6 +69,8 @@ export async function POST(_request: NextRequest, { params }: RouteContext<"/api
     .filter(Boolean)
     .join("\n");
 
+  // Charged only now: a cached score above costs nothing.
+  if (!(await chargeMe(supabase, 1))) return error(429, QUOTA_REFUSED);
   const result = await scoreJob(`${header}\n\n${job.description ?? ""}`, candidate, seeker);
   if (result.failed) return error(503, "The AI service is busy or unavailable. Try again in a few minutes.");
 

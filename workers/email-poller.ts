@@ -9,7 +9,8 @@
 //
 // Env:
 //   GMAIL_USER, GMAIL_APP_PASSWORD   IMAP login (Gmail app password)
-//   MATCHIE_USER_ID                  auth.users id that owns this inbox
+//   MATCHIE_USER_ID                  the owner: auth.users id that owns this inbox
+//                                    (email tracking is owner-only; migration 017)
 //   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 //   GEMINI_API_KEY, GROQ_API_KEY
 //   Optional: IMAP_HOST (imap.gmail.com), IMAP_MAILBOX (INBOX),
@@ -19,6 +20,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { createClient } from "../lib/supabase/admin.ts";
 import { describeError } from "../lib/describe-error.ts";
+import { chargeUser } from "../lib/llm-quota.ts";
 import { ResumeContentSchema } from "../lib/resume.ts";
 import { canonicalHash, inferWorkSetup, normalizeCompanyName } from "../lib/ats.ts";
 import { parseJobAlert, type ParsedAlert } from "../lib/job-alert-parser.ts";
@@ -53,6 +55,7 @@ const stats = {
   alertJobs: 0,
   newJobs: 0,
   failed: 0,
+  quotaSkipped: 0,
 };
 // Job alert senders. Gmail files these under Social or Promotions, which the
 // main search skips, so they are searched for separately.
@@ -99,6 +102,7 @@ async function main() {
     // as an alert, otherwise skipped as before, so it never reaches the LLM.
     const mainSearch = new Set(found[0]);
     const alertsOnly = new Set(uids.filter((uid) => !mainSearch.has(uid)));
+    const run: RunContext = { userId, applications, statusById, knownNames, alertsOnly, quotaOut: false };
 
     // Newest first, so a backlog spends the per-run cap on fresh mail.
     for (const uid of uids.sort((a, b) => b - a)) {
@@ -115,7 +119,7 @@ async function main() {
         continue;
       }
 
-      await processMessage(supabase, message.source, receivedAt, uid, { userId, applications, statusById, knownNames, alertsOnly });
+      await processMessage(supabase, message.source, receivedAt, uid, run);
     }
   } finally {
     lock.release();
@@ -133,6 +137,8 @@ type RunContext = {
   statusById: Map<string, ApplicationRef["status"]>;
   knownNames: string[];
   alertsOnly: Set<number>;
+  /** Set once the owner's daily LLM quota is spent: no more classification this run. */
+  quotaOut: boolean;
 };
 
 async function processMessage(supabase: Supabase, source: Buffer, receivedAt: Date, uid: number, run: RunContext) {
@@ -180,6 +186,16 @@ async function processMessage(supabase: Supabase, source: Buffer, receivedAt: Da
   // Privacy gate: personal mail stops here. Not stored, not sent to an LLM.
   if (!looksJobRelated(email, applications)) {
     stats.filtered++;
+    return;
+  }
+
+  // Charged first. Out of quota: not stored, so the next run retries it while
+  // it is inside the lookback window. Job alerts above still go through.
+  // Not a worker call for the quota: classification is the owner's live
+  // tracking, so it draws on the share the workers' cap leaves free.
+  if (run.quotaOut || !(await chargeUser(supabase, userId, 1, false))) {
+    run.quotaOut = true;
+    stats.quotaSkipped++;
     return;
   }
 

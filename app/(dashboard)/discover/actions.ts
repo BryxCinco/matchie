@@ -3,6 +3,7 @@
 import { requireUser } from "@/lib/auth/require-user";
 import { MAX_BATCH_JOBS, scoreJobsBatch } from "@/lib/batch-scoring";
 import { DEMO_DISABLED, isDemoAccount } from "@/lib/demo";
+import { chargeMe, QUOTA_REFUSED } from "@/lib/llm-quota";
 import { loadCandidate } from "@/lib/load-candidate";
 import { createClient } from "@/lib/supabase/server";
 
@@ -69,6 +70,9 @@ export async function analyzeResumeForJobs(): Promise<AnalyzeResult> {
     console.error("[discover] loading jobs failed", jobsError.code);
     return { ok: false, error: "Could not load the jobs. Please try again." };
   }
+
+  // One batch is one LLM call.
+  if (!(await chargeMe(supabase, 1))) return { ok: false, error: QUOTA_REFUSED };
 
   let result;
   try {

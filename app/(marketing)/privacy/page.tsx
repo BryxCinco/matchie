@@ -94,7 +94,8 @@ export default function PrivacyPage() {
             You can edit or replace your resume and preferences at any time on your profile. What you change there is what Matchie uses from then on.
           </p>
           <p>
-            Deleting your whole account from inside the app is not available yet. Until it is, ask the person who runs your Matchie instance to delete it, or open an issue on the{" "}
+            You can delete your account and all your data any time in Settings, under Danger zone. It removes your profile, resume, matches, applications and
+            profile picture, and it cannot be undone. Questions go to the{" "}
             <a href="https://github.com/BryxCinco/matchie" className="link" target="_blank" rel="noreferrer">
               project&apos;s GitHub page
             </a>

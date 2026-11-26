@@ -108,7 +108,7 @@ Requirements: Node.js 22.18 or newer, a Supabase project, and free API keys for 
 
 2. **Environment.** Copy `.env.example` to `.env.local` and fill it in (see the table below).
 
-3. **Database.** Run every file in `supabase/migrations/` in order (`001` to `013`) in the Supabase SQL editor, or with the Supabase CLI.
+3. **Database.** Run every file in `supabase/migrations/` in order (`001` to `017`) in the Supabase SQL editor, or with the Supabase CLI.
 
 4. **Auth URLs.** In Supabase, under **Authentication > URL Configuration**, set the Site URL to `http://localhost:3000` and add `http://localhost:3000/auth/callback` to the Redirect URLs.
 
@@ -118,7 +118,7 @@ Requirements: Node.js 22.18 or newer, a Supabase project, and free API keys for 
    npm run dev
    ```
 
-   Open [http://localhost:3000](http://localhost:3000), sign up, add your resume on the Profile page and fill in your preferences.
+   Open [http://localhost:3000](http://localhost:3000), create an account with an invite code (see **Multi-user setup**), add your resume on the Profile page and fill in your preferences.
 
 6. **Workers (optional, for discovery, email and the digest).** Add the secrets below to the GitHub repository under **Settings > Secrets and variables > Actions**. To run a worker locally:
 
@@ -140,9 +140,28 @@ Requirements: Node.js 22.18 or newer, a Supabase project, and free API keys for 
 | `GROQ_API_KEY` | App, workers | Fallback when Gemini fails |
 | `GEMINI_MODEL`, `GROQ_MODEL` | Optional | Override the default models when a provider retires one |
 | `SUPABASE_SERVICE_ROLE_KEY` | Workers only | Bypasses row-level security. Never used in `app/` |
-| `MATCHIE_USER_ID` | Workers | The account the workers act for (single user) |
+| `MATCHIE_USER_ID` | Email poller, digest | The owner. The other workers serve every user |
+| `MATCHIE_OWNER_ID` | App (server only) | Same value as `MATCHIE_USER_ID`; marks the owner in Settings |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Email poller | IMAP login with a Gmail app password |
 | `RESEND_API_KEY` | Digest | `RESEND_FROM` and `DIGEST_TO` are optional |
+
+### Multi-user setup
+
+Accounts are invite-only (migration `017`). Every LLM call is charged to a daily quota first: 45 calls a day in total, the owner's reserved share of 25 outside the shared pool, and up to 8 a day for each invited user. Workers may spend at most 5 of an invited user's calls and 15 of the owner's, so Paste JD, Analyze and email classification always have calls left.
+
+1. Apply `supabase/migrations/017_multi_user.sql`, then run `supabase/checks/017_multi_user_checks.sql` in the SQL editor. It rolls back, and no error means every check passed.
+2. Under **Authentication > Hooks**, add a **Before User Created** hook of type Postgres that calls `public.hook_check_invite`. Do this **before** step 3: without the hook, anyone can sign up without a code.
+3. Then, under **Authentication > Sign In / Providers**, allow new users to sign up and keep **Confirm email** on.
+4. In the SQL editor, mark your own account as the owner and create invite codes:
+
+   ```sql
+   update public.profiles set llm_reserved = true where user_id = '<YOUR_USER_ID>';
+   insert into public.invite_codes (code, max_uses, expires_at) values ('<CODE>', 5, now() + interval '30 days');
+   ```
+
+5. On Vercel, set `MATCHIE_OWNER_ID` to your user id.
+
+Email tracking and the digest stay owner-only: reading another person's inbox would mean storing their mailbox password, and Resend's test sender only delivers to its own account.
 
 ### Scripts
 

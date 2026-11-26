@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { isDemoUser } from "@/lib/auth/is-demo-user";
+import { isOwner } from "@/lib/auth/is-owner";
 import { requireUser } from "@/lib/auth/require-user";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "../actions";
@@ -32,6 +33,16 @@ export default function SettingsPage() {
           <Row title="Password" description="Change it here, or get a reset link by email if you are not sure of the current one.">
             <Suspense fallback={<PasswordControls demo={false} />}>
               <PasswordSection />
+            </Suspense>
+          </Row>
+        </Group>
+      </FadeIn>
+
+      <FadeIn delay={0.08}>
+        <Group title="Email tracking">
+          <Row title="Recruiter email" description="Moves applications on the tracker when a recruiter replies.">
+            <Suspense fallback={<p className="text-sm text-zinc-500 dark:text-zinc-400">Checking…</p>}>
+              <EmailTrackingStatus />
             </Suspense>
           </Row>
         </Group>
@@ -91,6 +102,18 @@ function PasswordControls({ demo }: { demo: boolean }) {
       <PasswordForm demo={demo} />
       <ResetLinkButton demo={demo} />
     </div>
+  );
+}
+
+// Reading an inbox needs its password, and Matchie only ever holds its
+// owner's (GitHub Actions secrets). Everyone else moves cards by hand.
+async function EmailTrackingStatus() {
+  await requireUser("/settings");
+  const owner = await isOwner();
+  return (
+    <p className="text-sm text-zinc-700 dark:text-zinc-300">
+      {owner ? "Connected to your inbox. It is checked every 2 hours." : "Owner-only in this prototype. Move your cards on the tracker by hand."}
+    </p>
   );
 }
 

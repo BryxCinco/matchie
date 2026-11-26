@@ -276,6 +276,30 @@ export type Database = {
           },
         ]
       }
+      invite_codes: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string | null
+          max_uses: number
+          used_count: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at?: string | null
+          max_uses?: number
+          used_count?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string | null
+          max_uses?: number
+          used_count?: number
+        }
+        Relationships: []
+      }
       interviews: {
         Row: {
           application_id: string
@@ -472,6 +496,27 @@ export type Database = {
           },
         ]
       }
+      llm_usage: {
+        Row: {
+          calls: number
+          day: string
+          user_id: string
+          worker_calls: number
+        }
+        Insert: {
+          calls?: number
+          day: string
+          user_id: string
+          worker_calls?: number
+        }
+        Update: {
+          calls?: number
+          day?: string
+          user_id?: string
+          worker_calls?: number
+        }
+        Relationships: []
+      }
       matches: {
         Row: {
           created_at: string
@@ -532,10 +577,12 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          daily_llm_quota: number | null
           home_lat: number | null
           home_lng: number | null
           id: string
           is_demo: boolean
+          llm_reserved: boolean
           locale: string
           updated_at: string
           user_id: string
@@ -543,10 +590,12 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          daily_llm_quota?: number | null
           home_lat?: number | null
           home_lng?: number | null
           id?: string
           is_demo?: boolean
+          llm_reserved?: boolean
           locale?: string
           updated_at?: string
           user_id: string
@@ -554,10 +603,12 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          daily_llm_quota?: number | null
           home_lat?: number | null
           home_lng?: number | null
           id?: string
           is_demo?: boolean
+          llm_reserved?: boolean
           locale?: string
           updated_at?: string
           user_id?: string
@@ -725,6 +776,12 @@ export type Database = {
         }
         Returns: undefined
       }
+      consume_llm_quota: {
+        Args: { p_calls: number; p_user_id: string; p_worker: boolean }
+        Returns: boolean
+      }
+      consume_my_llm_quota: { Args: { p_calls: number }; Returns: boolean }
+      delete_my_account: { Args: Record<PropertyKey, never>; Returns: undefined }
       delete_old_jobs: { Args: { retention_days?: number }; Returns: number }
       record_email_interview: {
         Args: {
@@ -746,6 +803,8 @@ export type Database = {
           rank: number
         }[]
       }
+      hook_check_invite: { Args: { event: Json }; Returns: Json }
+      my_llm_quota_left: { Args: Record<PropertyKey, never>; Returns: number }
       mark_ghosted_applications: {
         Args: { p_days?: number }
         Returns: {
